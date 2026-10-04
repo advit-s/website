@@ -24,6 +24,8 @@ export const C = {
   counters: "counters",
   orderAccess: "orderAccess",
   rateLimits: "rateLimits",
+  simPayments: "simPayments",
+  simShipments: "simShipments",
 } as const;
 
 /** Server clock as ISO-8601 UTC. All writes originate on the server, so this is the authoritative timestamp (D-25). */

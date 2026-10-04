@@ -176,6 +176,8 @@ export interface OrderShipment {
 
 export interface OrderPayment {
   razorpayOrderId: string | null;
+  /** Every provider order created for this order (one per attempt) so a late capture on an earlier attempt still matches. */
+  providerOrderIds: string[];
   razorpayPaymentId: string | null;
   attempts: number;
   capturedAt: ISODate | null;

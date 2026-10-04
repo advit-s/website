@@ -94,6 +94,32 @@ generated placeholder art (SVG compositions in brand colours) until the owner su
 npm + `package-lock.json`. Vitest 3 (unit/integration), `@firebase/rules-unit-testing` (rules), Playwright (E2E). `firebase-tools` as a devDependency so
 emulators run with `npx firebase` (Java 21+ required for the Firestore emulator; Java 25 present locally).
 
-## D-21 Runtime for auth checks
-Next 15.5 middleware runs with `runtime: 'nodejs'` so the Admin SDK can verify cookies. Middleware only redirects early; every server action,
-route handler, and admin layout re-verifies via `requireUser()` / `requireAdmin()`.
+## D-21 Where auth is enforced
+`src/middleware.ts` (Next 15 middleware; renamed `proxy.ts` in 16) only redirects requests that carry no session cookie for `/admin/*` and `/account/*`.
+It does not verify cookies, so it adds no Admin SDK to the request path and cannot be mistaken for the real gate. Authoritative checks
+(signature, revocation via `verifySessionCookie(cookie, true)`, admin claim, ownership) run in the admin layout, each protected page,
+and every route handler/server action through `requireUser()` / `requireAdmin()` / `requireRecentAdmin()`.
+
+## D-22 CSP
+Static CSP with `'unsafe-inline'` for scripts/styles because Next injects inline bootstrap scripts; `'unsafe-eval'` only in dev. A nonce-based CSP
+(requires dynamic rendering for every page via middleware) is a recommended hardening step before launch.
+
+## D-23 Colour additions
+Brand tokens are exactly the eight in the brief. Additions for accessibility: `ink-muted #5c534d` (7:1 on ivory) for secondary text, `line #dccfb9`
+for dividers, `gold-ink #7a5d00` for gold-family text, and success/warning/error/info foreground+background pairs, always paired with an icon and text.
+Gold (#D4AF37) and taupe (#C9B8A7) are decorative only on ivory (contrast < 3:1); gold text is used only on maroon.
+
+## D-24 Delivery-charge rules not specified in the PDFs
+Free-delivery threshold waives the base charge **and** the heavy-piece surcharge (otherwise bridal pieces would always pay a surcharge on high-value
+orders); the surcharge is `per started kg above heavyAboveGrams`. All values are demo defaults, owner-editable in Settings, and stated at checkout.
+
+## D-25 Timestamps
+Timestamps are ISO-8601 UTC strings written by the server clock. Every write originates server-side (rules deny client writes), so the server
+clock is the single authority, and ISO strings sort lexicographically for range queries and cursor pagination. Firestore `Timestamp`/`serverTimestamp()` is not used because values nested in arrays/maps cannot use `serverTimestamp()`.
+
+## D-26 Catalog search and filtering
+Firestore Standard allows one `array-contains` per query and no full-text search, so a multi-facet shop page cannot be one indexed query.
+The shop reads a bounded listing projection of published products (cap 1,000, cached 60 s in production, invalidated on admin edits),
+then filters/sorts/paginates in code (`src/domain/catalog.ts`, unit-tested). Search matches whole-word prefixes against precomputed `searchTokens`.
+Beyond ~1,000 published products an external search service (e.g. Algolia/Typesense) is required; Admin warns before the cap.
+Orders, customers, inventory, and the dashboard never scan whole collections: they use indexed, cursor-paginated queries.
