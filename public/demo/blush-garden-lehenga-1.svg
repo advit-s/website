@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Demo illustration of a lehenga">
+<defs>
+<linearGradient id="blh_blush_garden" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f5e6e6"/><stop offset="1" stop-color="#dbb3b3"/></linearGradient>
+<linearGradient id="slh_blush_garden" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b97580"/><stop offset="0.5" stop-color="#e3a9b0"/><stop offset="1" stop-color="#b97580"/></linearGradient>
+<linearGradient id="dlh_blush_garden" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f6d3d6" stop-opacity="0.92"/><stop offset="1" stop-color="#f6d3d6" stop-opacity="0.55"/></linearGradient>
+<linearGradient id="hlh_blush_garden" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b8922a"/><stop offset="0.5" stop-color="#f1d77b"/><stop offset="1" stop-color="#b8922a"/></linearGradient>
+<pattern id="mlh_blush_garden" width="46" height="46" patternUnits="userSpaceOnUse"><g stroke="#f1d77b" stroke-width="1.4" fill="none" stroke-linecap="round"><circle cx="23" cy="23" r="3" fill="#f1d77b"/><ellipse cx="23" cy="11" rx="3.4" ry="6"/><ellipse cx="23" cy="35" rx="3.4" ry="6"/><ellipse cx="11" cy="23" rx="6" ry="3.4"/><ellipse cx="35" cy="23" rx="6" ry="3.4"/></g></pattern>
+</defs>
+<rect width="800" height="1000" fill="url(#blh_blush_garden)"/>
+<path d="M130 1000V420a270 270 0 0 1 540 0V1000Z" fill="#fff" fill-opacity="0.10"/>
+<path d="M175 1000V430a225 225 0 0 1 450 0V1000Z" fill="#fff" fill-opacity="0.07"/>
+<rect y="930" width="800" height="70" fill="#000" fill-opacity="0.10"/>
+<ellipse cx="400" cy="935" rx="300" ry="22" fill="#000" fill-opacity="0.18"/>
+<!-- skirt -->
+<path d="M318 478 C300 640 215 790 150 915 Q400 962 650 915 C585 790 500 640 482 478 Z" fill="url(#slh_blush_garden)"/>
+<path d="M318 478 C300 640 215 790 150 915 Q400 962 650 915 C585 790 500 640 482 478 Z" fill="url(#mlh_blush_garden)" opacity="0.55"/>
+<path d="M312 560 C400 585 400 585 488 560 L492 580 C400 606 400 606 308 580Z" fill="url(#hlh_blush_garden)"/>
+<path d="M270 705 Q400 745 530 705 L541 735 Q400 778 259 735Z" fill="url(#hlh_blush_garden)" opacity="0.9"/>
+<path d="M205 835 Q400 888 595 835 L612 872 Q400 934 188 872Z" fill="url(#hlh_blush_garden)"/>
+<path d="M150 915 Q400 962 650 915" stroke="#f1d77b" stroke-width="3" fill="none"/>
+<g stroke="#b97580" stroke-opacity="0.35" stroke-width="2"><path d="M400 600V945"/><path d="M355 590 322 930"/><path d="M445 590 478 930"/></g>
+<!-- waist band -->
+<path d="M316 462h168l-2 22H318Z" fill="url(#hlh_blush_garden)"/>
+<!-- blouse -->
+<path d="M322 280 C340 262 370 258 400 262 C430 258 460 262 478 280 L496 330 C492 380 490 420 484 466 L316 466 C310 420 308 380 304 330Z" fill="#c98791"/>
+<path d="M322 280 C340 262 370 258 400 262 C430 258 460 262 478 280 L496 330 C492 380 490 420 484 466 L316 466 C310 420 308 380 304 330Z" fill="url(#mlh_blush_garden)" opacity="0.5"/>
+<path d="M345 272 C370 306 430 306 455 272" stroke="#f1d77b" stroke-width="3" fill="none"/>
+<path d="M316 466h168" stroke="#f1d77b" stroke-width="3"/>
+<!-- arms -->
+<path d="M304 330 C280 400 262 470 258 540 L282 546 C292 480 312 420 330 360Z" fill="#c99a7c"/>
+<path d="M496 330 C520 400 538 470 542 540 L518 546 C508 480 488 420 470 360Z" fill="#c99a7c"/>
+<g fill="#f1d77b"><rect x="256" y="505" width="30" height="7" rx="3"/><rect x="514" y="505" width="30" height="7" rx="3"/></g>
+<!-- neck + head (faceless) -->
+<path d="M382 236 h36 v34 q-18 14 -36 0Z" fill="#c99a7c"/>
+<ellipse cx="400" cy="196" rx="44" ry="54" fill="#c99a7c"/>
+<path d="M352 188 C350 140 450 134 448 188 C440 160 360 160 352 188Z" fill="#2a1612"/>
+<circle cx="400" cy="128" r="22" fill="#2a1612"/>
+<circle cx="400" cy="156" r="3.4" fill="#f1d77b"/>
+<g fill="#f1d77b"><circle cx="355" cy="222" r="4"/><circle cx="445" cy="222" r="4"/></g>
+<path d="M368 270 Q400 326 432 270" stroke="#f1d77b" stroke-width="2.6" fill="none"/>
+<!-- dupatta -->
+<path d="M452 262 C520 262 560 320 556 430 C552 560 600 720 612 900 C560 880 520 700 506 560 C498 470 470 360 430 300Z" fill="url(#dlh_blush_garden)"/>
+<path d="M556 430 C552 560 600 720 612 900" stroke="#f1d77b" stroke-width="2.4" fill="none" opacity="0.8"/>
+<g fill="#f1d77b" opacity="0.9"><circle cx="150" cy="150" r="3"/><circle cx="660" cy="120" r="2"/><circle cx="700" cy="260" r="3"/><circle cx="105" cy="330" r="2"/><circle cx="640" cy="40" r="2"/></g>
+</svg>

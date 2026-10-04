@@ -1,0 +1,12 @@
+rules_version = '2';
+// Storage: clients cannot write. Admin uploads are validated, decoded and re-encoded server-side
+// (src/server/media) and written with the Admin SDK (which bypasses rules). Only published media is public.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /products/published/{allPaths=**} { allow read: if true;  allow write: if false; }
+    match /categories/{allPaths=**}         { allow read: if true;  allow write: if false; }
+    // Drafts are private; admin previews use short-lived signed URLs minted server-side.
+    match /products/draft/{allPaths=**}     { allow read, write: if false; }
+    match /{allPaths=**}                    { allow read, write: if false; }
+  }
+}

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Demo illustration of a bridal accessory">
+<defs><linearGradient id="aac_dupatta" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f4dfe6"/><stop offset="1" stop-color="#d596ac"/></linearGradient>
+<linearGradient id="gac_dupatta" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b8922a"/><stop offset="0.5" stop-color="#f1d77b"/><stop offset="1" stop-color="#a47f1d"/></linearGradient></defs>
+<rect width="800" height="1000" fill="url(#aac_dupatta)"/>
+<ellipse cx="400" cy="850" rx="260" ry="24" fill="#000" fill-opacity=".14"/>
+<path d="M140 200 C300 160 500 260 660 200 L690 760 C520 840 300 740 110 800Z" fill="#c25b6d"/><path d="M140 200 C300 160 500 260 660 200" stroke="url(#gac_dupatta)" stroke-width="14" fill="none"/><path d="M110 800 C300 740 520 840 690 760" stroke="url(#gac_dupatta)" stroke-width="18" fill="none"/><g fill="url(#gac_dupatta)" opacity=".85"><circle cx="220" cy="400" r="9"/><circle cx="400" cy="460" r="9"/><circle cx="580" cy="400" r="9"/><circle cx="300" cy="580" r="9"/><circle cx="500" cy="600" r="9"/></g>
+</svg>

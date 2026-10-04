@@ -1,0 +1,61 @@
+rules_version = '2';
+// Raj Raani Collections - Firestore rules.
+// Principles (docs/DECISIONS.md D-07..D-10): deny by default; the browser never writes business data;
+// ALL mutations go through server code using the Admin SDK (which bypasses these rules, so every server
+// path performs its own authorization). Catalog data is served to the public through server DTOs, so
+// products/variants/categories are not client-readable (drafts and operational stock fields must not leak).
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+    function isAdmin() { return isSignedIn() && request.auth.token.admin == true; }
+
+    // --- Per-user data: owner may read; every write is server-owned. Subcollections are explicit (no inheritance). ---
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if false;
+
+      match /addresses/{addressId} {
+        allow read: if isOwner(uid) || isAdmin();
+        allow write: if false;
+      }
+      match /cart/{itemId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+      match /wishlist/{productId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+    }
+
+    // --- Orders: owner/admin read; creation and every update is server-only. ---
+    match /orders/{orderId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.userId == request.auth.uid);
+      allow write: if false;
+      match /timeline/{eventId} {
+        allow read: if isAdmin() || (isSignedIn() && get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid
+                                      && resource.data.customerVisible == true);
+        allow write: if false;
+      }
+    }
+
+    // --- Operational/audit collections: admin read only, server write only. ---
+    match /stockLogs/{id}          { allow read: if isAdmin(); allow write: if false; }
+    match /assistantLogs/{id}      { allow read: if isAdmin(); allow write: if false; }
+    match /auditLogs/{id}          { allow read: if isAdmin(); allow write: if false; }
+    match /contactEnquiries/{id}   { allow read: if isAdmin(); allow write: if false; }
+    match /customEnquiries/{id}    { allow read: if isAdmin(); allow write: if false; }
+
+    // --- Catalog: no direct client access (served via server DTOs). Admin may read for tooling. ---
+    match /categories/{id}         { allow read: if isAdmin(); allow write: if false; }
+    match /products/{id}           { allow read: if isAdmin(); allow write: if false; }
+    match /productVariants/{id}    { allow read: if isAdmin(); allow write: if false; }
+
+    // --- Everything else (settings, coupons, reservations, idempotency keys, webhook receipts, outbox, ...): server only. ---
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

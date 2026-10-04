@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Demo illustration of embroidery detail">
+<defs>
+<linearGradient id="glh_wine_sequin" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6b1e2d"/><stop offset="1" stop-color="#3d0f19"/></linearGradient>
+<pattern id="mlh_wine_sequin" width="46" height="46" patternUnits="userSpaceOnUse"><g stroke="#f6dc85" stroke-width="1.4" fill="none" stroke-linecap="round"><circle cx="23" cy="23" r="3" fill="#f6dc85"/><ellipse cx="23" cy="11" rx="3.4" ry="6"/><ellipse cx="23" cy="35" rx="3.4" ry="6"/><ellipse cx="11" cy="23" rx="6" ry="3.4"/><ellipse cx="35" cy="23" rx="6" ry="3.4"/></g></pattern>
+<linearGradient id="rlh_wine_sequin" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b8922a"/><stop offset="0.5" stop-color="#f1d77b"/><stop offset="1" stop-color="#b8922a"/></linearGradient>
+</defs>
+<rect width="800" height="1000" fill="url(#glh_wine_sequin)"/>
+<rect width="800" height="1000" fill="url(#mlh_wine_sequin)" transform="scale(1.7)" opacity="0.85"/>
+<rect y="640" width="800" height="26" fill="url(#rlh_wine_sequin)"/>
+<rect y="690" width="800" height="10" fill="url(#rlh_wine_sequin)" opacity="0.8"/>
+<g fill="#f1d77b" opacity="0.9"><circle cx="100" cy="800" r="26"/><circle cx="260" cy="840" r="26"/><circle cx="420" cy="800" r="26"/><circle cx="580" cy="840" r="26"/><circle cx="740" cy="800" r="26"/></g>
+<g fill="none" stroke="#f1d77b" stroke-width="2.4"><circle cx="100" cy="800" r="16"/><circle cx="260" cy="840" r="16"/><circle cx="420" cy="800" r="16"/><circle cx="580" cy="840" r="16"/><circle cx="740" cy="800" r="16"/></g>
+<rect y="0" width="800" height="1000" fill="#000" opacity="0.06"/>
+</svg>

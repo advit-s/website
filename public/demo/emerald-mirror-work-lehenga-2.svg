@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Demo illustration of embroidery detail">
+<defs>
+<linearGradient id="glh_emerald_mirror" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1d6a50"/><stop offset="1" stop-color="#0f3f31"/></linearGradient>
+<pattern id="mlh_emerald_mirror" width="30" height="30" patternUnits="userSpaceOnUse"><circle cx="8" cy="8" r="2.2" fill="#f6dc85"/><circle cx="23" cy="23" r="2.2" fill="#f6dc85"/><circle cx="23" cy="8" r="1" fill="#f6dc85"/><circle cx="8" cy="23" r="1" fill="#f6dc85"/></pattern>
+<linearGradient id="rlh_emerald_mirror" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b8922a"/><stop offset="0.5" stop-color="#f1d77b"/><stop offset="1" stop-color="#b8922a"/></linearGradient>
+</defs>
+<rect width="800" height="1000" fill="url(#glh_emerald_mirror)"/>
+<rect width="800" height="1000" fill="url(#mlh_emerald_mirror)" transform="scale(1.7)" opacity="0.85"/>
+<rect y="640" width="800" height="26" fill="url(#rlh_emerald_mirror)"/>
+<rect y="690" width="800" height="10" fill="url(#rlh_emerald_mirror)" opacity="0.8"/>
+<g fill="#f1d77b" opacity="0.9"><circle cx="100" cy="800" r="26"/><circle cx="260" cy="840" r="26"/><circle cx="420" cy="800" r="26"/><circle cx="580" cy="840" r="26"/><circle cx="740" cy="800" r="26"/></g>
+<g fill="none" stroke="#f1d77b" stroke-width="2.4"><circle cx="100" cy="800" r="16"/><circle cx="260" cy="840" r="16"/><circle cx="420" cy="800" r="16"/><circle cx="580" cy="840" r="16"/><circle cx="740" cy="800" r="16"/></g>
+<rect y="0" width="800" height="1000" fill="#000" opacity="0.06"/>
+</svg>

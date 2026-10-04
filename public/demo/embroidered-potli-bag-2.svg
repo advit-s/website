@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Demo illustration of a bridal accessory">
+<defs><linearGradient id="aac_potlib" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#c99a86"/><stop offset="1" stop-color="#e9d3c6"/></linearGradient>
+<linearGradient id="gac_potlib" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b8922a"/><stop offset="0.5" stop-color="#f1d77b"/><stop offset="1" stop-color="#a47f1d"/></linearGradient></defs>
+<rect width="800" height="1000" fill="url(#aac_potlib)"/>
+<ellipse cx="400" cy="850" rx="260" ry="24" fill="#000" fill-opacity=".14"/>
+<path d="M260 760 C230 600 270 470 400 430 C530 470 570 600 540 760 Q400 800 260 760Z" fill="#7a1a2e"/><path d="M260 760 C230 600 270 470 400 430 C530 470 570 600 540 760" fill="none" stroke="url(#gac_potlib)" stroke-width="5"/><path d="M330 450 Q400 400 470 450" stroke="url(#gac_potlib)" stroke-width="8" fill="none"/><path d="M330 450 Q250 300 330 260 M470 450 Q550 300 470 260" stroke="url(#gac_potlib)" stroke-width="6" fill="none"/><g fill="url(#gac_potlib)" opacity=".95"><circle cx="400" cy="600" r="46"/><circle cx="400" cy="600" r="30" fill="#a3202f"/></g><g fill="url(#gac_potlib)"><circle cx="320" cy="690" r="7"/><circle cx="480" cy="690" r="7"/><circle cx="360" cy="720" r="6"/><circle cx="440" cy="720" r="6"/></g>
+</svg>

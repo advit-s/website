@@ -1,0 +1,110 @@
+@import "tailwindcss";
+
+/*
+ * Raj Raani design tokens. The eight brand colours are fixed by the brief (Master Prompt section 3).
+ * Rows marked "addition" are documented additions (docs/DECISIONS.md D-23): accessible muted text and
+ * status colours, because gold/taupe fail contrast for small text on ivory.
+ */
+@theme {
+  --color-maroon: #4a1020;
+  --color-wine: #6b1e2d;
+  --color-ivory: #faf8f3;
+  --color-gold: #d4af37;
+  --color-beige: #e8ddc9;
+  --color-taupe: #c9b8a7;
+  --color-charcoal: #2d2d2d;
+  --color-rose: #f5e6e6;
+
+  /* additions */
+  --color-ink-muted: #5c534d;      /* 7.0:1 on ivory - secondary text */
+  --color-line: #dccfb9;            /* divider, slightly stronger than beige on ivory */
+  --color-gold-ink: #7a5d00;        /* gold-family text that passes 5:1 on ivory */
+  --color-success: #1f6b3a;
+  --color-success-bg: #e5f1e8;
+  --color-warning: #7a4b00;
+  --color-warning-bg: #fbefd2;
+  --color-error: #a3202f;
+  --color-error-bg: #fbe4e6;
+  --color-info: #204a7a;
+  --color-info-bg: #e4edf7;
+
+  --font-serif: var(--font-playfair), "Playfair Display", Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-inter), Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-nav: var(--font-montserrat), Montserrat, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+
+  --breakpoint-xs: 30rem;
+  --ease-soft: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+:root {
+  --container: 80rem;      /* 1280px */
+  --gutter: 1rem;
+  --header-h: 4.5rem;
+  --btn-h: 2.75rem;        /* 44px touch target */
+  --btn-h-sm: 2.25rem;
+}
+@media (min-width: 48rem) { :root { --gutter: 2rem; } }
+@media (min-width: 80rem) { :root { --gutter: 2.5rem; } }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; }
+}
+
+body {
+  background: var(--color-ivory);
+  color: var(--color-charcoal);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
+}
+
+h1, h2, h3, h4 { font-family: var(--font-serif); font-weight: 500; letter-spacing: -0.005em; line-height: 1.15; color: var(--color-maroon); }
+
+/* shared type scale */
+.t-display { font-family: var(--font-serif); font-size: clamp(2.5rem, 6vw, 4.5rem); line-height: 1.04; font-weight: 500; }
+.t-h1 { font-family: var(--font-serif); font-size: clamp(2rem, 4vw, 3rem); line-height: 1.1; }
+.t-h2 { font-family: var(--font-serif); font-size: clamp(1.625rem, 3vw, 2.25rem); line-height: 1.15; }
+.t-h3 { font-family: var(--font-serif); font-size: 1.375rem; line-height: 1.25; }
+.t-eyebrow { font-family: var(--font-nav); font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 500; }
+.t-small { font-size: 0.875rem; line-height: 1.5; }
+
+.container-rr { width: 100%; max-width: var(--container); margin-inline: auto; padding-inline: var(--gutter); }
+
+/* focus: visible, consistent, two-tone so it works on ivory and maroon */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-wine);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--color-ivory);
+}
+.on-dark :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline-color: var(--color-gold);
+  box-shadow: 0 0 0 4px var(--color-maroon);
+}
+
+.skip-link { position: absolute; left: -999px; top: 0; z-index: 100; background: var(--color-maroon); color: #fff; padding: .75rem 1rem; }
+.skip-link:focus { left: 0; }
+
+/* thin gold rule */
+.rule-gold { height: 1px; background: linear-gradient(90deg, transparent, var(--color-gold), transparent); border: 0; }
+
+/* reveal animation: opacity only, disabled via reduced-motion rule above */
+@keyframes rr-fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.rr-fade { animation: rr-fade 0.5s var(--ease-soft) both; }
+
+/* admin shell uses its own neutral surface, still maroon accented */
+.admin-shell { --color-surface: #f6f5f2; background: var(--color-surface); }
+
+/* hide scrollbar for chip rows */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* form validation */
+input:user-invalid, select:user-invalid, textarea:user-invalid { border-color: var(--color-error); }

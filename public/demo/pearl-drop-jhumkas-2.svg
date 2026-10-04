@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" role="img" aria-label="Demo illustration of a bridal accessory">
+<defs><linearGradient id="aac_jhumkab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#dbb3b3"/><stop offset="1" stop-color="#f5e6e6"/></linearGradient>
+<linearGradient id="gac_jhumkab" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b8922a"/><stop offset="0.5" stop-color="#f1d77b"/><stop offset="1" stop-color="#a47f1d"/></linearGradient></defs>
+<rect width="800" height="1000" fill="url(#aac_jhumkab)"/>
+<ellipse cx="400" cy="850" rx="260" ry="24" fill="#000" fill-opacity=".14"/>
+<g id="j"><path d="M300 260 v60" stroke="url(#gac_jhumkab)" stroke-width="6"/><path d="M240 340 a60 60 0 0 1 120 0Z" fill="url(#gac_jhumkab)"/><path d="M246 340 h108 l-14 80 h-80Z" fill="url(#gac_jhumkab)" opacity=".9"/><g fill="#faf8f3"><circle cx="270" cy="440" r="9"/><circle cx="300" cy="450" r="9"/><circle cx="330" cy="440" r="9"/></g></g><use href="#j" x="200"/>
+</svg>
