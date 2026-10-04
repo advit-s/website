@@ -31,8 +31,12 @@ test.describe("shared login and role routing", () => {
   });
 
   test("there is no /admin/login page", async ({ page }) => {
+    // signed out: the early redirect sends the visitor to the one shared login
+    await page.goto("/admin/login");
+    expect(new URL(page.url()).pathname).toBe("/login");
+    // signed in as admin: the route simply does not exist
+    await loginWithEmail(page, "admin@rajraani.test");
     const res = await page.goto("/admin/login");
-    // there is deliberately no separate admin login route
     expect(res?.status()).toBe(404);
   });
 

@@ -4,7 +4,8 @@ import { notFound } from "next/navigation";
 import { requireAdminPage } from "@/server/auth/session";
 import { getAllCategoriesAdmin } from "@/server/repos/catalog";
 import { getProductForAdmin } from "@/server/services/catalog-admin";
-import { ProductEditor, type EditorState } from "@/components/admin/product-editor";
+import { ProductEditor } from "@/components/admin/product-editor";
+import type { EditorState } from "@/components/admin/product-editor-state";
 import { PageHeader } from "@/components/admin/admin-shell";
 
 export const metadata: Metadata = { title: "Edit product" };

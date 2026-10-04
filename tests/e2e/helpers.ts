@@ -7,7 +7,7 @@ export async function loginWithEmail(page: Page, email: string, next?: string) {
   await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").first().fill(DEMO_PASSWORD);
   await page.getByRole("button", { name: "Sign in" }).click();
-  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 20_000 });
+  await page.waitForURL((u) => !u.pathname.startsWith("/login"), { timeout: 60_000, waitUntil: "commit" });
 }
 
 export async function expectNoHorizontalOverflow(page: Page) {

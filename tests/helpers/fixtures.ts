@@ -32,7 +32,7 @@ export async function makeProduct(opts: { price?: number; stocks: number[]; weig
   await db().collection(C.categories).doc(categoryId).set({ name: `Test ${tag}`, slug: `test-${tag}`, description: "t", imageUrl: null, sortOrder: 99, isActive: true, version: 1, createdAt: now, updatedAt: now });
   const vs = opts.stocks.map((stock, i) => {
     const size = ["S", "M", "L", "XL", "XXL"][i] ?? `S${i}`;
-    return { id: variantId(productId, size, "Red"), size, color: "Red", stock, reserved: 0, lowStockThreshold: opts.threshold ?? 3, productId, productName: `Test ${tag}`, categoryId, sku: `T-${tag}-${size}`, priceOverride: null, version: 1, updatedAt: now, isLowStock: false };
+    return { id: variantId(productId, size, "Red"), size, color: "Red", stock, reserved: 0, lowStockThreshold: opts.threshold ?? 3, productId, productName: `Test ${tag}`, categoryId, sku: `T-${tag.toUpperCase()}-${size}`, priceOverride: null, version: 1, updatedAt: now, isLowStock: false };
   });
   vs.forEach((v) => (v.isLowStock = computeIsLowStock(v)));
   const d = deriveFromVariants(vs);
@@ -45,6 +45,7 @@ export async function makeProduct(opts: { price?: number; stocks: number[]; weig
   for (const v of vs) {
     const { id, ...rest } = v;
     await db().collection(C.variants).doc(id).set(rest);
+    await db().collection(C.uniqueKeys).doc(`sku:${v.sku}`).set({ entity: "variant", id, createdAt: now });
   }
   return { categoryId, productId, slug: `test-${tag}`, price, variants: vs.map((v) => ({ id: v.id, size: v.size, color: v.color })) };
 }

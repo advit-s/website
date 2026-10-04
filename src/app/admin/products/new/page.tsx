@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireAdminPage } from "@/server/auth/session";
 import { getAllCategoriesAdmin } from "@/server/repos/catalog";
-import { ProductEditor, emptyEditor } from "@/components/admin/product-editor";
+import { ProductEditor } from "@/components/admin/product-editor";
+import { emptyEditor } from "@/components/admin/product-editor-state";
 import { PageHeader } from "@/components/admin/admin-shell";
 
 export const metadata: Metadata = { title: "New product" };
