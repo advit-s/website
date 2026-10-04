@@ -207,7 +207,7 @@ export async function placeOrder(input: CheckoutInput, ctx: PlaceOrderContext): 
         customerVisible: true,
         actor: ctx.userId ? "customer" : "guest",
       });
-      tx.set(idemRef, { requestHash, orderId, userId: ctx.userId, createdAt: placedAt });
+      tx.set(idemRef, { requestHash, orderId, userId: ctx.userId, createdAt: placedAt, expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString() });
       return { orderNumber };
     });
   } catch (e) {

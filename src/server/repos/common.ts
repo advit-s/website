@@ -42,3 +42,18 @@ export function chunk<T>(arr: T[], n: number): T[][] {
   for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
   return out;
 }
+
+/** Opaque pagination cursor = (sort value, document id). The id breaks ties so equal timestamps never skip or repeat rows. */
+export function encodeCursor(value: string, id: string): string {
+  return Buffer.from(`${value}|${id}`, "utf8").toString("base64url");
+}
+export function decodeCursor(c: string | null | undefined): { value: string; id: string } | null {
+  if (!c || c.length > 200) return null;
+  try {
+    const raw = Buffer.from(c, "base64url").toString("utf8");
+    const i = raw.lastIndexOf("|");
+    return i > 0 ? { value: raw.slice(0, i), id: raw.slice(i + 1) } : null;
+  } catch {
+    return null;
+  }
+}

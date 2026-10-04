@@ -49,7 +49,9 @@ export function WishlistView() {
   const toast = useToast();
   const [picking, setPicking] = useState<ListingProduct | null>(null);
   const [choice, setChoice] = useState("");
-  useEffect(() => setChoice(""), [picking]);
+  useEffect(() => {
+    setChoice("");
+  }, [picking]);
 
   if (!wishlistReady) return <Skeleton className="h-64 w-full" />;
   const saved = products.filter((p) => wishlist.has(p.id));

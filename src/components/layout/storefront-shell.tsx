@@ -1,7 +1,10 @@
 import { SiteHeader } from "./site-header";
 import { SiteFooter } from "./site-footer";
+import { AssistantWidget } from "@/components/storefront/assistant-widget";
+import { getPrivateSettings } from "@/server/repos/settings";
 
-export function StorefrontShell({ children }: { children: React.ReactNode }) {
+export async function StorefrontShell({ children }: { children: React.ReactNode }) {
+  const priv = await getPrivateSettings().catch(() => null);
   return (
     <>
       <SiteHeader />
@@ -9,6 +12,7 @@ export function StorefrontShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <SiteFooter />
+      {priv?.assistant.customerEnabled !== false && <AssistantWidget />}
     </>
   );
 }

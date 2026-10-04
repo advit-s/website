@@ -11,3 +11,9 @@ export function mediaUrl(src: string | null | undefined): string {
   const host = emu ? "http://127.0.0.1:9199" : "https://firebasestorage.googleapis.com";
   return `${host}/v0/b/${bucket}/o/${encodeURIComponent(src)}?alt=media`;
 }
+
+/** In admin screens, private draft media is previewed through an admin-only endpoint; everything else uses the public URL. */
+export function adminMediaUrl(src: string | null | undefined): string {
+  if (src && src.startsWith("products/draft/")) return `/api/admin/media?path=${encodeURIComponent(src)}`;
+  return mediaUrl(src);
+}

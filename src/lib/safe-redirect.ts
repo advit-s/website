@@ -13,7 +13,6 @@ export function safeNext(next: string | null | undefined, fallback = "/account")
   if (v.length > 300) return fallback;
   if (!v.startsWith("/")) return fallback;
   if (v.startsWith("//") || v.startsWith("/\\")) return fallback;
-  // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f\u007f\\]/.test(v)) return fallback;
   if (/^\/(login|register|forgot-password)(\/|\?|$)/.test(v)) return fallback;
   if (/^\/api\//.test(v)) return fallback;

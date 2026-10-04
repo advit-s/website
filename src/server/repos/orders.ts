@@ -1,5 +1,6 @@
 import "server-only";
-import { C, col } from "./common";
+import { FieldPath } from "firebase-admin/firestore";
+import { C, col, decodeCursor, encodeCursor } from "./common";
 import { orderFromDoc } from "../services/order-core";
 import type { CustomerFilter } from "@/domain/order-state";
 import type { FulfilmentStatus, Order } from "@/domain/types";
@@ -22,12 +23,13 @@ export async function listUserOrders(uid: string, filter: CustomerFilter, cursor
   let q: FirebaseFirestore.Query = col(C.orders).where("userId", "==", uid);
   const set = STATUS_SETS[filter];
   if (set) q = q.where("status", "in", set);
-  q = q.orderBy("placedAt", "desc");
-  if (cursor) q = q.startAfter(cursor);
+  q = q.orderBy("placedAt", "desc").orderBy(FieldPath.documentId(), "desc");
+  const c = decodeCursor(cursor);
+  if (c) q = q.startAfter(c.value, c.id);
   const snap = await q.limit(limit + 1).get();
   const docs = snap.docs.map(orderFromDoc);
   const items = docs.slice(0, limit);
-  return { items, nextCursor: docs.length > limit ? (items[items.length - 1]?.placedAt ?? null) : null };
+  return { items, nextCursor: docs.length > limit && items.length ? encodeCursor(items[items.length - 1]!.placedAt, items[items.length - 1]!.id) : null };
 }
 
 export async function countUserOrders(uid: string): Promise<number> {

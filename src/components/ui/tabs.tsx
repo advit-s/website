@@ -25,10 +25,22 @@ export function Tabs({ tabs, initial, label, variant = "line" }: { tabs: TabDef[
     refs.current[t.id]?.focus();
   };
   const onKey = (e: KeyboardEvent, i: number) => {
-    if (e.key === "ArrowRight") (e.preventDefault(), move(i + 1));
-    else if (e.key === "ArrowLeft") (e.preventDefault(), move(i - 1));
-    else if (e.key === "Home") (e.preventDefault(), move(0));
-    else if (e.key === "End") (e.preventDefault(), move(tabs.length - 1));
+    if (e.key === "ArrowRight") {
+      e.preventDefault();
+      move(i + 1);
+    }
+    else if (e.key === "ArrowLeft") {
+      e.preventDefault();
+      move(i - 1);
+    }
+    else if (e.key === "Home") {
+      e.preventDefault();
+      move(0);
+    }
+    else if (e.key === "End") {
+      e.preventDefault();
+      move(tabs.length - 1);
+    }
   };
 
   return (

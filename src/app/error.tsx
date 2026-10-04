@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
@@ -16,9 +17,9 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
       </p>
       <div className="mt-8 flex justify-center gap-3">
         <Button onClick={reset}>Try again</Button>
-        <a href="/" className="inline-flex min-h-11 items-center px-4 text-maroon underline underline-offset-4">
+        <Link href="/" className="inline-flex min-h-11 items-center px-4 text-maroon underline underline-offset-4">
           Go home
-        </a>
+        </Link>
       </div>
       {error.digest && <p className="mt-6 text-xs text-ink-muted">Reference: {error.digest}</p>}
     </main>

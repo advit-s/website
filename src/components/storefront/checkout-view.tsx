@@ -132,7 +132,7 @@ export function CheckoutView({ initial }: { initial: CheckoutInitial }) {
 
   const set = <K extends keyof typeof addr>(k: K, v: string) => setAddr((a) => ({ ...a, [k]: v }));
 
-  const useSaved = (id: string) => {
+  const applySavedAddress = (id: string) => {
     setSavedId(id);
     const a = initial.addresses.find((x) => x.id === id);
     if (a) setAddr({ fullName: a.fullName, phone: a.phone, line1: a.line1, line2: a.line2, city: a.city, state: a.state, pincode: a.pincode });
@@ -402,7 +402,7 @@ export function CheckoutView({ initial }: { initial: CheckoutInitial }) {
               <div className="mt-4">
                 <Field label="Use a saved address">
                   {(f) => (
-                    <Select id={f.id} value={savedId} onChange={(e) => useSaved(e.target.value)}>
+                    <Select id={f.id} value={savedId} onChange={(e) => applySavedAddress(e.target.value)}>
                       {initial.addresses.map((a) => (
                         <option key={a.id} value={a.id}>
                           {a.label} - {a.line1}, {a.city} {a.pincode}
