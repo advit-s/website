@@ -388,9 +388,9 @@ export function CheckoutView({ initial }: { initial: CheckoutInitial }) {
           <section aria-labelledby="s1">
             <StepHeading n={1} id="s1" title="Contact information" aside={!initial.user ? <>Already have an account? <Link href="/login?next=/checkout" className="text-maroon underline underline-offset-4">Sign in</Link></> : undefined} />
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <Field label="Full name" required error={err("contact.name")}>{(f) => <Input id="contact-name" name="name" autoComplete="name" value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
-              <Field label="Mobile number" required error={err("contact.phone")} hint="For delivery updates">{(f) => <Input id="contact-phone" name="tel" type="tel" inputMode="tel" autoComplete="tel" value={contact.phone} onChange={(e) => setContact({ ...contact, phone: e.target.value })} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
-              <Field label="Email address" required error={err("contact.email")} className="sm:col-span-2" hint="Your receipt is sent here">{(f) => <Input id="contact-email" name="email" type="email" inputMode="email" autoComplete="email" value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
+              <Field id="contact-name" label="Full name" required error={err("contact.name")}>{(f) => <Input id="contact-name" name="name" autoComplete="name" value={contact.name} onChange={(e) => setContact({ ...contact, name: e.target.value })} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
+              <Field id="contact-phone" label="Mobile number" required error={err("contact.phone")} hint="For delivery updates">{(f) => <Input id="contact-phone" name="tel" type="tel" inputMode="tel" autoComplete="tel" value={contact.phone} onChange={(e) => setContact({ ...contact, phone: e.target.value })} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
+              <Field id="contact-email" label="Email address" required error={err("contact.email")} className="sm:col-span-2" hint="Your receipt is sent here">{(f) => <Input id="contact-email" name="email" type="email" inputMode="email" autoComplete="email" value={contact.email} onChange={(e) => setContact({ ...contact, email: e.target.value })} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
             </div>
             <p className="mt-3 text-xs text-ink-muted">Guest checkout is fine - no account needed. We use these details only to process and deliver this order.</p>
           </section>
@@ -415,12 +415,12 @@ export function CheckoutView({ initial }: { initial: CheckoutInitial }) {
               </div>
             )}
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Field label="Recipient name" required error={err("address.fullName")}>{(f) => <Input id="address-fullName" autoComplete="shipping name" value={addr.fullName} onChange={(e) => set("fullName", e.target.value)} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
-              <Field label="Delivery phone" error={err("address.phone")} hint="Leave blank to use your contact number">{(f) => <Input id="address-phone" type="tel" inputMode="tel" autoComplete="shipping tel" value={addr.phone} onChange={(e) => set("phone", e.target.value)} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
-              <Field label="Address line 1" required error={err("address.line1")} className="sm:col-span-2">{(f) => <Input id="address-line1" autoComplete="shipping address-line1" placeholder="House no., building, street" value={addr.line1} onChange={(e) => set("line1", e.target.value)} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
+              <Field id="address-fullName" label="Recipient name" required error={err("address.fullName")}>{(f) => <Input id="address-fullName" autoComplete="shipping name" value={addr.fullName} onChange={(e) => set("fullName", e.target.value)} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
+              <Field id="address-phone" label="Delivery phone" error={err("address.phone")} hint="Leave blank to use your contact number">{(f) => <Input id="address-phone" type="tel" inputMode="tel" autoComplete="shipping tel" value={addr.phone} onChange={(e) => set("phone", e.target.value)} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
+              <Field id="address-line1" label="Address line 1" required error={err("address.line1")} className="sm:col-span-2">{(f) => <Input id="address-line1" autoComplete="shipping address-line1" placeholder="House no., building, street" value={addr.line1} onChange={(e) => set("line1", e.target.value)} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
               <Field label="Address line 2 (optional)" className="sm:col-span-2">{(f) => <Input id={f.id} autoComplete="shipping address-line2" placeholder="Apartment, landmark" value={addr.line2} onChange={(e) => set("line2", e.target.value)} />}</Field>
-              <Field label="City" required error={err("address.city")}>{(f) => <Input id="address-city" autoComplete="shipping address-level2" value={addr.city} onChange={(e) => set("city", e.target.value)} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
-              <Field label="State" required error={err("address.state")}>
+              <Field id="address-city" label="City" required error={err("address.city")}>{(f) => <Input id="address-city" autoComplete="shipping address-level2" value={addr.city} onChange={(e) => set("city", e.target.value)} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
+              <Field id="address-state" label="State" required error={err("address.state")}>
                 {(f) => (
                   <Select id="address-state" autoComplete="shipping address-level1" value={addr.state} onChange={(e) => set("state", e.target.value)} aria-invalid={f.invalid} aria-describedby={f.describedBy}>
                     <option value="">Select state</option>
@@ -432,7 +432,7 @@ export function CheckoutView({ initial }: { initial: CheckoutInitial }) {
                   </Select>
                 )}
               </Field>
-              <Field label="Pincode" required error={err("address.pincode")}>{(f) => <Input id="address-pincode" inputMode="numeric" autoComplete="shipping postal-code" maxLength={6} value={addr.pincode} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); set("pincode", v); prefs.setPincode(v); }} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
+              <Field id="address-pincode" label="Pincode" required error={err("address.pincode")}>{(f) => <Input id="address-pincode" inputMode="numeric" autoComplete="shipping postal-code" maxLength={6} value={addr.pincode} onChange={(e) => { const v = e.target.value.replace(/\D/g, ""); set("pincode", v); prefs.setPincode(v); }} aria-invalid={f.invalid} aria-describedby={f.describedBy} />}</Field>
             </div>
             {initial.user && <div className="mt-3"><Checkbox checked={saveAddr} onChange={(e) => setSaveAddr(e.target.checked)} label="Save this address for future orders" /></div>}
           </section>

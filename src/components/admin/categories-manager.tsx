@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Alert, Badge } from "@/components/ui/feedback";
 import { Checkbox, Field, Input, Select, Textarea } from "@/components/ui/field";
-import { tableCls } from "./admin-shell";
+import { tableCls } from "./table-styles";
 import { slugify } from "@/domain/product-build";
 import { adminMediaUrl } from "@/lib/media";
 

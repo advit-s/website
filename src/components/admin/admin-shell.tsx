@@ -106,7 +106,7 @@ export function PageHeader({ title, description, actions }: { title: string; des
 
 export function Card({ title, children, className, action }: { title?: string; children: React.ReactNode; className?: string; action?: React.ReactNode }) {
   return (
-    <section className={clsx("rounded-md border border-line bg-white", className)}>
+    <section className={clsx("min-w-0 rounded-md border border-line bg-white", className)}>
       {title && (
         <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
           <h2 className="!font-sans text-sm font-semibold uppercase tracking-wide text-charcoal">{title}</h2>
@@ -117,10 +117,3 @@ export function Card({ title, children, className, action }: { title?: string; c
     </section>
   );
 }
-
-export const tableCls = {
-  wrap: "overflow-x-auto rounded-md border border-line bg-white",
-  table: "w-full min-w-[40rem] border-collapse text-left text-sm",
-  th: "whitespace-nowrap text-left border-b border-line bg-beige/40 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-muted",
-  td: "border-b border-line/70 px-3 py-2.5 align-middle",
-};

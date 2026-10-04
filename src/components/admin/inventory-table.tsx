@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Download, Upload } from "lucide-react";
 import clsx from "clsx";
-import { tableCls } from "./admin-shell";
+import { tableCls } from "./table-styles";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { Alert, Badge } from "@/components/ui/feedback";

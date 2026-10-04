@@ -7,6 +7,8 @@ export const inputClass =
   "transition-colors hover:border-maroon/60 focus:border-maroon disabled:bg-beige/40 disabled:text-ink-muted aria-[invalid=true]:border-error";
 
 interface FieldProps {
+  /** Optional stable id for the control (defaults to a generated one). The label always points at this id. */
+  id?: string;
   label: string;
   hint?: string;
   error?: string | null;
@@ -16,8 +18,9 @@ interface FieldProps {
 }
 
 /** Label + control + hint + error, wired with htmlFor / aria-describedby / aria-invalid. */
-export function Field({ label, hint, error, required, className, children }: FieldProps) {
-  const id = useId();
+export function Field({ id: idProp, label, hint, error, required, className, children }: FieldProps) {
+  const generated = useId();
+  const id = idProp ?? generated;
   const hintId = hint ? `${id}-hint` : undefined;
   const errId = error ? `${id}-err` : undefined;
   const describedBy = [hintId, errId].filter(Boolean).join(" ") || undefined;

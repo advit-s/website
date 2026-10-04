@@ -35,7 +35,7 @@ function SizeGuideTable() {
   return (
     <div className="space-y-4">
       {SIZE_GUIDE.isPlaceholder && <Alert tone="warning" title="Draft measurements">These figures are a starting chart pending the owner&apos;s confirmation. If you are unsure, ask us on WhatsApp before ordering.</Alert>}
-      <div className="overflow-x-auto">
+      <div className="relative overflow-x-auto">
         <table className="w-full min-w-[22rem] border-collapse text-sm">
           <caption className="sr-only">Body measurements in centimetres by size</caption>
           <thead>

@@ -12,7 +12,7 @@ const isWin = process.platform === "win32";
 const run = (cmd, args, opts = {}) => spawn(cmd, args, { stdio: "inherit", shell: isWin, ...opts });
 
 const firstRun = !existsSync("emulator-data");
-const emu = run("npx", ["firebase", "emulators:start", "--project", "demo-rajraani", "--import=./emulator-data", "--export-on-exit=./emulator-data"]);
+const emu = run("npx", ["firebase", "emulators:start", "--only", "auth,firestore,storage", "--project", "demo-rajraani", "--import=./emulator-data", "--export-on-exit=./emulator-data"]);
 
 async function waitFor(url, label, ms = 120_000) {
   const t0 = Date.now();

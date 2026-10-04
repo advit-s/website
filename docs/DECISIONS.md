@@ -123,3 +123,19 @@ The shop reads a bounded listing projection of published products (cap 1,000, ca
 then filters/sorts/paginates in code (`src/domain/catalog.ts`, unit-tested). Search matches whole-word prefixes against precomputed `searchTokens`.
 Beyond ~1,000 published products an external search service (e.g. Algolia/Typesense) is required; Admin warns before the cap.
 Orders, customers, inventory, and the dashboard never scan whole collections: they use indexed, cursor-paginated queries.
+
+## D-27 Admin shell styling
+The reference image shows a navy sidebar admin. The brand palette (D-23) has no navy, so the admin uses the same ivory/maroon/gold tokens with a neutral
+dense layout (sticky left nav on desktop, top bar + drawer on mobile). Information architecture follows the reference; colours follow the brand brief.
+
+## D-28 Shiprocket webhook alias
+Shiprocket advises webhook URLs must not contain "shiprocket"/"sr"/"kr". `/api/webhooks/courier` rewrites to `/api/webhooks/shiprocket` (next.config.ts). The token is checked from the `x-api-key` header; state transitions are forward-only and receipts are permanent (unique per AWB+status+timestamp).
+
+## D-29 Guest orders and account linking
+Guests check out with phone + email. An order is linked to an account only after the signed-in user proves control of the identifier (verified email or phone OTP) or via a single-use order-access token. Tracking by order number + phone shows masked data only.
+
+## D-30 Client writes denied (supersedes parts of D-09)
+Firestore/Storage rules deny every client write; all mutations go through server routes using the Admin SDK so validation, stock, idempotency and audit are enforced in one place. Rules allow only owner-scoped reads and are covered by `npm run test:rules`.
+
+## D-31 Coupons
+Coupons (percent/flat, min order, expiry, usage limits) are managed in Admin -> Settings and evaluated server-side in `computePricing`; the client never supplies a discount amount. Demo coupons: WELCOME10, FLAT500.

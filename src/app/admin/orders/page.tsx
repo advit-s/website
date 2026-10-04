@@ -3,7 +3,8 @@ import Link from "next/link";
 import clsx from "clsx";
 import { requireAdminPage } from "@/server/auth/session";
 import { listAdminOrders } from "@/server/services/admin-orders";
-import { PageHeader, tableCls } from "@/components/admin/admin-shell";
+import { PageHeader } from "@/components/admin/admin-shell";
+import { tableCls } from "@/components/admin/table-styles";
 import { Badge, Alert } from "@/components/ui/feedback";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -36,10 +37,10 @@ export default async function AdminOrders({ searchParams }: { searchParams: Prom
           </Link>
         ))}
       </nav>
-      <form method="get" className="mb-4 flex max-w-xl gap-2">
+      <form method="get" className="mb-4 flex max-w-xl flex-wrap items-center gap-2">
         {tab !== "all" && <input type="hidden" name="tab" value={tab} />}
         <label htmlFor="q" className="sr-only">Search orders</label>
-        <Input id="q" name="q" defaultValue={q} placeholder="Order number, email or phone" className="min-h-10" />
+        <div className="min-w-0 flex-1"><Input id="q" name="q" defaultValue={q} placeholder="Order number, email or phone" className="min-h-10" /></div>
         <Button type="submit" variant="secondary">Search</Button>
         {q && <Link href={href({ q: "" })} className="inline-flex min-h-10 items-center px-2 text-sm text-maroon underline">Clear</Link>}
       </form>

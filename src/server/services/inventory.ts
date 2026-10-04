@@ -211,11 +211,16 @@ function parseCsv(text: string): string[][] {
     const c = text[i]!;
     if (q) {
       if (c === '"') {
-        if (text[i + 1] === '"') (cur += '"', i++);
-        else q = false;
+        if (text[i + 1] === '"') {
+          cur += '"';
+          i++;
+        } else q = false;
       } else cur += c;
     } else if (c === '"') q = true;
-    else if (c === ",") (row.push(cur), (cur = ""));
+    else if (c === ",") {
+      row.push(cur);
+      cur = "";
+    }
     else if (c === "\n" || c === "\r") {
       if (c === "\r" && text[i + 1] === "\n") i++;
       row.push(cur);
@@ -371,8 +376,13 @@ export async function commitImport(buf: Buffer, filename: string, actor: string)
       });
       for (const o of outcome) {
         const res = results.find((x) => x.row === o.row)!;
-        if (o.ok) (applied++, (res.message = o.msg));
-        else ((res.status = "conflict"), (res.message = o.msg));
+        if (o.ok) {
+          applied++;
+          res.message = o.msg;
+        } else {
+          res.status = "conflict";
+          res.message = o.msg;
+        }
       }
     } catch (e) {
       failedChunks++;

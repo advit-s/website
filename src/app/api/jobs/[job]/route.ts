@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { env } from "@/server/env";
 import { expireReservations, reconcilePayments } from "@/server/services/payment-events";
 import { drainOutbox } from "@/server/services/notifications";
+import { purgeOldAssistantLogs } from "@/server/services/assistant-review";
 
 export const runtime = "nodejs";
 
@@ -24,6 +25,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ job: string }>
       return NextResponse.json(await drainOutbox());
     case "reconcile":
       return NextResponse.json(await reconcilePayments());
+    case "purge":
+      return NextResponse.json(await purgeOldAssistantLogs());
     default:
       return NextResponse.json({ error: "unknown job" }, { status: 404 });
   }

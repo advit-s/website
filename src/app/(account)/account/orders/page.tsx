@@ -5,6 +5,7 @@ import { requireUserPage } from "@/server/auth/session";
 import { listUserOrders } from "@/server/repos/orders";
 import { Badge, EmptyState } from "@/components/ui/feedback";
 import { ButtonLink } from "@/components/ui/button";
+import { LinkGuestOrder } from "@/components/account/link-order";
 import { formatINR } from "@/domain/money";
 import { STATUS_LABEL, PAYMENT_LABEL, type CustomerFilter } from "@/domain/order-state";
 
@@ -74,6 +75,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           ))}
         </ul>
       )}
+      <LinkGuestOrder />
       {page.nextCursor && (
         <div className="text-center">
           <Link

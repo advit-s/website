@@ -1,11 +1,45 @@
 {
-  "firestore": { "rules": "firestore.rules", "indexes": "firestore.indexes.json" },
-  "storage": { "rules": "storage.rules" },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "emulators": {
-    "auth": { "port": 9099, "host": "127.0.0.1" },
-    "firestore": { "port": 8080, "host": "127.0.0.1" },
-    "storage": { "port": 9199, "host": "127.0.0.1" },
-    "ui": { "enabled": true, "port": 4000, "host": "127.0.0.1" },
+    "auth": {
+      "port": 9099,
+      "host": "127.0.0.1"
+    },
+    "firestore": {
+      "port": 8080,
+      "host": "127.0.0.1"
+    },
+    "storage": {
+      "port": 9199,
+      "host": "127.0.0.1"
+    },
+    "ui": {
+      "enabled": true,
+      "port": 4000,
+      "host": "127.0.0.1"
+    },
     "singleProjectMode": true
+  },
+  "apphosting": {
+    "backendId": "raj-raani-web",
+    "rootDir": "/",
+    "ignore": [
+      "node_modules",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
+      "emulator-data",
+      "screenshots",
+      "test-results",
+      "tests",
+      "docs",
+      "reference image"
+    ]
   }
 }

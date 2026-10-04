@@ -343,7 +343,7 @@ async function returnReceived(orderId: string, disposition: "restock" | "discard
       applyStock(tx, variants, lines, "restock", { orderId, reason: `return restock ${o.orderNumber}`, actor });
     }
     tx.update(orderRef(orderId), { returnStatus: "received", updatedAt: nowIso(), version: o.version + 1 });
-    ret.docs[0] && tx.update(ret.docs[0].ref, { status: "received", disposition, receivedAt: nowIso() });
+    if (ret.docs[0]) tx.update(ret.docs[0].ref, { status: "received", disposition, receivedAt: nowIso() });
     addTimeline(tx, orderId, { type: "return.received", label: "Return received", detail: disposition === "restock" ? "Item inspected and returned to stock." : "Item inspected; not resellable.", customerVisible: true, actor });
     auditInTx(tx, actor, "return.received", orderId, { disposition });
   });

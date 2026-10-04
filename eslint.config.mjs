@@ -4,7 +4,7 @@ import { fileURLToPath } from "url";
 
 const compat = new FlatCompat({ baseDirectory: dirname(fileURLToPath(import.meta.url)) });
 
-export default [
+const config = [
   { ignores: [".next/**", "node_modules/**", "emulator-data/**", "next-env.d.ts", "coverage/**", "playwright-report/**", ".claude/**"] },
   ...compat.extends("next/core-web-vitals", "next/typescript"),
   {
@@ -19,3 +19,5 @@ export default [
     rules: { "no-restricted-imports": "off" },
   },
 ];
+
+export default config;

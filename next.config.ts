@@ -41,6 +41,10 @@ const nextConfig: NextConfig = {
       { protocol: "http", hostname: "localhost", port: "9199" },
     ],
   },
+  // Shiprocket asks that webhook URLs not contain words such as "shiprocket"/"sr"/"kr"; this neutral alias maps to the same handler.
+  async rewrites() {
+    return [{ source: "/api/webhooks/courier", destination: "/api/webhooks/shiprocket" }];
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

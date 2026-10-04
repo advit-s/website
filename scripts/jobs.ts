@@ -3,9 +3,11 @@
  *   npm run jobs:expire     release stock held by unpaid prepaid orders past their expiry
  *   npm run jobs:outbox     deliver pending notifications (preview channel only until a vendor is chosen)
  *   npm run jobs:reconcile  ask the payment provider about recent unpaid prepaid orders (lost webhook/callback recovery)
+ *   npm run jobs:purge      delete assistant conversations older than the configured retention (default 365 days)
  */
 import { expireReservations, reconcilePayments } from "@/server/services/payment-events";
 import { drainOutbox } from "@/server/services/notifications";
+import { purgeOldAssistantLogs } from "@/server/services/assistant-review";
 
 async function main() {
   const job = process.argv[2];
@@ -19,8 +21,11 @@ async function main() {
     case "reconcile":
       console.log("reconcile:", await reconcilePayments());
       break;
+    case "purge":
+      console.log("purge:", await purgeOldAssistantLogs());
+      break;
     default:
-      throw new Error("Usage: tsx scripts/jobs.ts expire|outbox|reconcile");
+      throw new Error("Usage: tsx scripts/jobs.ts expire|outbox|reconcile|purge");
   }
 }
 

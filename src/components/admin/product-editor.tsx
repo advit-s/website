@@ -255,7 +255,7 @@ export function ProductEditor({ initial, categories, productId, version, isDemo 
           Each size/colour is its own variant with a unique SKU. Opening stock can be set for <strong>new</strong> variants only; to change stock on an existing variant use <Link href="/admin/inventory" className="text-maroon underline underline-offset-4">Inventory</Link>, which checks versions so concurrent sales are never overwritten.
         </p>
         {err("variants") && <p role="alert" className="mb-2 text-sm font-medium text-error">{err("variants")}</p>}
-        <div className="overflow-x-auto">
+        <div className="relative overflow-x-auto">
           <table className="w-full min-w-[46rem] text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-ink-muted">
@@ -315,7 +315,9 @@ export function ProductEditor({ initial, categories, productId, version, isDemo 
             <legend className="sr-only">Generate variants</legend>
             <span className="text-sm text-ink-muted">Quick add sizes:</span>
             {SIZES.map((x) => (
-              <label key={x} className="flex items-center gap-1.5 text-sm"><input type="checkbox" className="accent-[#4a1020]" checked={gen.sizes.has(x)} onChange={(e) => setGen((g) => { const n = new Set(g.sizes); e.target.checked ? n.add(x) : n.delete(x); return { ...g, sizes: n }; })} />{x}</label>
+              <label key={x} className="flex items-center gap-1.5 text-sm"><input type="checkbox" className="accent-[#4a1020]" checked={gen.sizes.has(x)} onChange={(e) => setGen((g) => { const n = new Set(g.sizes); if (e.target.checked) n.add(x);
+ else n.delete(x);
+ return { ...g, sizes: n }; })} />{x}</label>
             ))}
             <label className="sr-only" htmlFor="gen-colors">Colours (comma-separated)</label>
             <Input id="gen-colors" value={gen.colors} onChange={(e) => setGen((g) => ({ ...g, colors: e.target.value }))} placeholder="Colours: Maroon, Ivory" className="min-h-9 w-52" />

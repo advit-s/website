@@ -373,3 +373,27 @@ describe("access tokens and rate limiting", () => {
     await expect(rateLimit(rule, "b")).resolves.toBeTruthy();
   });
 });
+
+describe("immutable purchase snapshots", () => {
+  it("editing the product, its price or the customer's saved address never changes an existing order or its invoice", async () => {
+    const { buildInvoicePdf } = await import("@/server/services/invoice");
+    const { getPublicSettingsFresh } = await import("@/server/repos/settings");
+    const { saveAddress } = await import("@/server/repos/addresses");
+    const f = await makeProduct({ stocks: [5], price: 800_000 });
+    const uid = "snap_user_" + newId("").slice(0, 6);
+    const r = await placeOrder(checkoutInput(f.variants[0]!.id, 1), { userId: uid, idempotencyKey: key() });
+    const before = await get(r.orderId);
+    const pdfBefore = await buildInvoicePdf(before, await getPublicSettingsFresh());
+    await db().collection(C.products).doc(f.productId).update({ name: "Totally Renamed", price: 999_900 });
+    await db().collection(C.variants).doc(f.variants[0]!.id).update({ priceOverride: 1_234_500, productName: "Totally Renamed" });
+    const addr = await saveAddress(uid, { fullName: "Changed Name", phone: "+919000000009", line1: "99 New Street", line2: "", city: "Pune", state: "Maharashtra", pincode: "411001", country: "IN", label: "Home", isDefault: true });
+    await saveAddress(uid, { ...addr, state: "Maharashtra", line1: "100 Other Street", isDefault: true }, addr.id);
+    const after = await get(r.orderId);
+    expect(after.items[0]).toMatchObject({ nameSnapshot: before.items[0]!.nameSnapshot, unitPrice: 800_000, lineTotal: 800_000 });
+    expect(after.pricing).toEqual(before.pricing);
+    expect(after.shippingAddress).toEqual(before.shippingAddress);
+    const pdfAfter = await buildInvoicePdf(after, await getPublicSettingsFresh());
+    expect(pdfAfter.length).toBeGreaterThan(1000);
+    expect(Math.abs(pdfAfter.length - pdfBefore.length)).toBeLessThan(200); // same content apart from metadata timestamps
+  });
+});

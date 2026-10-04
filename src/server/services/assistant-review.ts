@@ -33,3 +33,15 @@ export async function listCustomerConversations(cursor: string | null, limit = 1
   });
   return { rows, nextCursor: snap.docs.length > limit && docs.length ? encodeCursor((docs.at(-1)!.data() as { createdAt: string }).createdAt, docs.at(-1)!.id) : null };
 }
+
+/** Retention: delete assistant conversations older than the configured number of days (bounded per run; run on a schedule). */
+export async function purgeOldAssistantLogs(limit = 200): Promise<{ deleted: number }> {
+  const { getPrivateSettings } = await import("../repos/settings");
+  const days = (await getPrivateSettings()).assistant.retentionDays;
+  const cutoff = new Date(Date.now() - days * 86_400_000).toISOString();
+  const snap = await col(C.assistantLogs).where("createdAt", "<", cutoff).orderBy("createdAt").limit(limit).get();
+  const b = col(C.assistantLogs).firestore.batch();
+  snap.docs.forEach((d) => b.delete(d.ref));
+  await b.commit();
+  return { deleted: snap.size };
+}
