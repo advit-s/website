@@ -273,7 +273,7 @@ export async function executeRefund(orderId: string, refundId: string, actor: st
     if (o.paymentMethod !== "razorpay") throw badRequest("Cash-on-delivery refunds are recorded manually (bank transfer / UPI reference), not sent through a provider.");
     if (!o.payment.razorpayPaymentId) throw conflict("NO_PAYMENT", "There is no captured payment to refund.");
     if (r.state === "completed") throw conflict("ALREADY_DONE", "This refund is already completed.");
-    if (r.state === "processing" && r.providerRefundId) throw conflict("IN_PROGRESS", "This refund has been sent to the provider and is settling.");
+    if (r.state === "processing") throw conflict("IN_PROGRESS", "This refund is in progress or awaiting reconciliation. Do not send it again.");
     const refunds = o.payment.refunds.map((x) => (x.id === refundId ? { ...x, state: "processing" as const, updatedAt: nowIso() } : x));
     tx.update(orderRef(orderId), { "payment.refunds": refunds, updatedAt: nowIso(), version: o.version + 1 });
     auditInTx(tx, actor, "refund.execute.start", orderId, { refundId, amount: r.amount });
@@ -290,11 +290,14 @@ export async function executeRefund(orderId: string, refundId: string, actor: st
 
   await db().runTransaction(async (tx) => {
     const o = orderFromDoc(await tx.get(orderRef(orderId)));
-    const state = errorMsg || result?.status === "failed" ? ("failed" as const) : result?.status === "processed" ? ("completed" as const) : ("processing" as const);
-    const refunds = o.payment.refunds.map((x) => (x.id === refundId ? { ...x, state, providerRefundId: result?.id ?? x.providerRefundId, updatedAt: nowIso(), reason: errorMsg ? `${x.reason} [provider error: ${errorMsg}]`.slice(0, 300) : x.reason } : x));
+    // A timeout/transport failure is ambiguous: the provider may already have
+    // moved money. Keep the claim locked until its real outcome is reconciled.
+    const state = errorMsg ? ("processing" as const) : result?.status === "failed" ? ("failed" as const) : result?.status === "processed" ? ("completed" as const) : ("processing" as const);
+    const refunds = o.payment.refunds.map((x) => (x.id === refundId && x.state !== "completed" ? { ...x, state, providerRefundId: result?.id ?? x.providerRefundId, updatedAt: nowIso(), reason: errorMsg ? `${x.reason} [provider outcome unknown: ${errorMsg}]`.slice(0, 300) : x.reason } : x));
     const refundedTotal = refunds.filter((x) => x.state === "completed").reduce((s, x) => s + x.amount, 0);
     const paymentStatus = refundedTotal >= o.pricing.total ? "refunded" : refundedTotal > 0 ? "partially_refunded" : o.paymentStatus;
     const patch: Record<string, unknown> = { "payment.refunds": refunds, "payment.refundedTotal": refundedTotal, paymentStatus, updatedAt: nowIso(), version: o.version + 1 };
+    if (errorMsg) patch.needsReview = true;
     if (state === "completed" && o.returnStatus === "refund_pending") patch.returnStatus = "closed";
     tx.update(orderRef(orderId), patch);
     addTimeline(tx, orderId, { type: `refund.${state}`, label: state === "completed" ? "Refund completed" : state === "failed" ? "Refund attempt failed" : "Refund is being processed", detail: errorMsg, customerVisible: state !== "failed", actor });
@@ -302,7 +305,7 @@ export async function executeRefund(orderId: string, refundId: string, actor: st
   });
   const after = orderFromDoc(await orderRef(orderId).get());
   if (!errorMsg) await enqueueNotification({ kind: "order.refund", to: { email: after.contact.email, phone: after.contact.phone }, data: { orderNumber: after.orderNumber, state: result?.status === "processed" ? "completed" : "processing" }, dedupeKey: `refund_${refundId}` });
-  if (errorMsg) throw conflict("PROVIDER_ERROR", `The payment provider did not complete the refund: ${errorMsg}. It is marked failed and can be retried.`);
+  if (errorMsg) throw conflict("REFUND_UNCERTAIN", "The refund outcome is unknown. It remains locked for reconciliation; check the provider before taking further action.");
   return after;
 }
 

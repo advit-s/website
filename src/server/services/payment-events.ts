@@ -24,7 +24,7 @@ export interface CaptureArgs {
 
 export type CaptureResult =
   | { applied: true; orderId: string; outcome: "confirmed" | "revived" | "needs_review" }
-  | { applied: false; orderId: string | null; reason: "already_paid" | "unknown_order" | "amount_mismatch" | "cancelled_by_staff" };
+  | { applied: false; orderId: string | null; reason: "already_paid" | "unknown_order" | "amount_mismatch" | "cancelled_by_staff" | "unexpected_payment_method" };
 
 const PAID_STATES = new Set(["paid", "partially_refunded", "refunded"]);
 
@@ -45,6 +45,19 @@ export async function applyPaymentCaptured(a: CaptureArgs): Promise<CaptureResul
     const ref = orderRef(orderId);
     const snap = await tx.get(ref);
     const order = orderFromDoc(snap);
+    // A previously opened online checkout can capture after the customer switched
+    // to COD. That order already allocated stock (and may already be shipped).
+    // Preserve its fulfilment/payment state and retain evidence for reconciliation.
+    if (order.paymentMethod !== "razorpay") {
+      const exceptionRef = ref.collection("paymentExceptions").doc(sha256(a.paymentId));
+      const prior = await tx.get(exceptionRef);
+      if (!prior.exists) {
+        tx.set(exceptionRef, { ...a, createdAt: nowIso(), status: "needs_review" });
+        tx.update(ref, { needsReview: true, "payment.lastError": "Online payment captured after switching to COD. Reconcile payment and courier collection before fulfilment.", updatedAt: nowIso(), version: order.version + 1 });
+        addTimeline(tx, orderId, { type: "payment.after_cod_switch", label: "Online payment received after COD switch - manual reconciliation required", detail: a.paymentId, customerVisible: false, actor: "provider" });
+      }
+      return { applied: false, orderId, reason: "unexpected_payment_method" };
+    }
     if (PAID_STATES.has(order.paymentStatus)) return { applied: false, orderId, reason: "already_paid" };
 
     if (a.currency !== "INR" || a.amount !== order.pricing.total) {
@@ -159,7 +172,8 @@ export async function verifyCheckoutCallback(orderId: string, cb: { providerOrde
   if (p.orderId !== cb.providerOrderId) throw badRequest("Payment does not match the order.");
   if (p.status === "captured") {
     await applyPaymentCaptured({ providerOrderId: p.orderId, paymentId: p.id, amount: p.amount, currency: p.currency, source: "callback" });
-    return { status: "paid", orderNumber: order.orderNumber };
+    const verified = orderFromDoc(await orderRef(orderId).get());
+    return { status: PAID_STATES.has(verified.paymentStatus) && !verified.needsReview ? "paid" : "pending", orderNumber: order.orderNumber };
   }
   if (p.status === "failed") {
     await applyPaymentFailed({ providerOrderId: p.orderId, paymentId: p.id, reason: p.errorDescription });
@@ -336,6 +350,9 @@ export async function applyRefundEvent(paymentId: string, providerRefundId: stri
   if (!doc) return;
   await db().runTransaction(async (tx) => {
     const order = orderFromDoc(await tx.get(doc.ref));
+    const existing = order.payment.refunds.find((r) => r.providerRefundId === providerRefundId);
+    // Unknown events must not mutate totals; completed money movement is terminal.
+    if (!existing || existing.state === "completed" || (existing.state === "failed" && status === "failed")) return;
     const refunds = order.payment.refunds.map((r) => (r.providerRefundId === providerRefundId ? { ...r, state: status === "processed" ? ("completed" as const) : ("failed" as const), updatedAt: nowIso() } : r));
     const refundedTotal = refunds.filter((r) => r.state === "completed").reduce((s, r) => s + r.amount, 0);
     const paymentStatus = refundedTotal >= order.pricing.total ? "refunded" : refundedTotal > 0 ? "partially_refunded" : order.paymentStatus;
@@ -343,4 +360,3 @@ export async function applyRefundEvent(paymentId: string, providerRefundId: stri
     addTimeline(tx, order.id, { type: "refund.event", label: `Refund ${status === "processed" ? "completed" : "failed"}`, detail: providerRefundId, customerVisible: true, actor: "provider" });
   });
 }
-

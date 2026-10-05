@@ -97,7 +97,15 @@ export async function placeOrder(input: CheckoutInput, ctx: PlaceOrderContext): 
     outcome = await db().runTransaction(async (tx) => {
       // ---- reads ----
       const idem = await tx.get(idemRef);
-      if (idem.exists) return { reusedOrderId: (idem.data() as { orderId: string }).orderId };
+      if (idem.exists) {
+        const existing = idem.data() as { requestHash: string; orderId: string };
+        // The earlier lookup can miss a competing transaction. Validate the stored
+        // request again here before granting access to its order.
+        if (existing.requestHash !== requestHash) {
+          throw new HttpError(422, "IDEMPOTENCY_KEY_REUSED", "This request key was already used for a different order. Please refresh and try again.");
+        }
+        return { reusedOrderId: existing.orderId };
+      }
       const counterRef = col(C.counters).doc("orders");
       const counter = await tx.get(counterRef);
       const variants = await readVariants(tx, stockLines);

@@ -1,6 +1,6 @@
 # Progress
 
-Last updated: 2026-10-04. Nothing has been deployed; no paid infrastructure exists; no live payment or provider call has been made.
+Last updated: 2026-10-05. Nothing has been deployed; no paid infrastructure exists; no live payment or provider call has been made. Independent readiness review and local fixes are recorded in READINESS_REVIEW.md.
 
 ## Milestones
 | Milestone | Status |
@@ -23,4 +23,6 @@ Legal identity/GSTIN/grievance officer; real photos and logo; Razorpay, Shiprock
 `npm install`, then `npm run dev:local` (emulators + seed on first run + Next dev) -> http://localhost:3000. Admin: admin@rajraani.test / Demo#Passw0rd (emulator only).
 
 ## Exact next action
-Owner: review docs/OWNER_SETUP.md and supply items in sections A-D. Developer (after credentials): follow docs/DEPLOYMENT.md, run Razorpay test-mode and Shiprocket sandbox checks listed under "Needs real services" in docs/TEST_REPORT.md. Deployment requires explicit owner approval.
+Developer: complete payment/refund recovery, payment-exception fulfilment guards, truthful messaging states, TTL date fields and provider retry checks using docs/NEXT_STEP_CLAUDE_PROMPT.md. Current local tests passing is not production readiness; review docs/READINESS_REVIEW.md before cloud setup.
+
+Owner: collect docs/OWNER_SETUP.md inputs in parallel. After recovery gates pass, configure isolated staging and exercise providers with test credentials using docs/DEPLOYMENT.md. Production deployment requires explicit owner approval.

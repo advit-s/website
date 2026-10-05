@@ -1,5 +1,25 @@
 # Test report
 
+## Independent readiness review — 2026-10-05
+
+The original Windows results below are author-reported and kept for provenance. A separate Linux review at base commit `3b3ba26` added four security tests and six payment regression tests, and applied the fixes described in READINESS_REVIEW.md. This review used Node 24.19.0, Java 21.0.6, Firebase emulators and simulated providers only.
+
+| Command/check | Independent result |
+|---|---|
+| Fresh `npm ci --ignore-scripts` | Initially failed on missing lockfile entries; succeeded after lockfile regeneration in the initial review run |
+| `npm run check` | TypeScript and ESLint passed; 48 unit tests passed |
+| `npx vitest run --project integration` inside Auth/Firestore/Storage emulators | 64 passed: checkout 24, admin 26, assistants 8, new payment regressions 6 |
+| `npx vitest run --project rules` inside emulators | 16 passed |
+| `npm run seed` | Succeeded against demo emulators |
+| `npm run build` with `.env.local` demo configuration and emulators running | Succeeded; no production provider verification implied |
+| Playwright purchase/auth/access rerun | Not run: Chromium and Headless Shell downloads both failed with invalid/truncated ZIP errors; no system browser available |
+| `npm audit --omit=dev` | 9 package findings: 5 high, 4 moderate; unresolved |
+| `git diff --check` | Passed |
+
+The initial failing regression runs reproduced the defects; the patched suites passed independently again when work resumed. No cloud service, real payment, courier, messaging or model call was exercised. Refund recovery and payment-exception resolution remain explicit release blockers; see NEXT_STEP_CLAUDE_PROMPT.md.
+
+## Original implementation report — 2026-10-04
+
 Date: 2026-10-04. Environment: Windows 11, Node 24, Java 25, Firebase emulators (Auth, Firestore, Storage), Next dev server, Chromium via Playwright.
 Everything below ran against **emulators and simulated providers only**. No cloud project, live payment, live courier or live AI call was made.
 

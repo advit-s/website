@@ -12,6 +12,12 @@ env:
     value: production
   - variable: INTEGRATION_MODE
     value: live
+  - variable: NEXT_PUBLIC_INTEGRATION_MODE
+    value: live
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_USE_EMULATORS
+    value: "false"
+    availability: [BUILD, RUNTIME]
   - variable: NEXT_PUBLIC_SITE_URL
     value: https://REPLACE-WITH-DOMAIN
     availability: [BUILD, RUNTIME]
@@ -34,6 +40,9 @@ env:
   - variable: NEXT_PUBLIC_RAZORPAY_KEY_ID
     value: REPLACE
     availability: [BUILD, RUNTIME]
+  - variable: RAZORPAY_KEY_ID
+    value: REPLACE
+    availability: [RUNTIME]
   # Secrets (Cloud Secret Manager names)
   - variable: RAZORPAY_KEY_SECRET
     secret: razorpay-key-secret

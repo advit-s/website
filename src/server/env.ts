@@ -52,7 +52,7 @@ export function env(): Env {
   if (e.APP_ENV === "production" && e.INTEGRATION_MODE !== "live") {
     throw new Error("Refusing to start: INTEGRATION_MODE must be 'live' when APP_ENV=production (simulations are local/staging only).");
   }
-  if (e.APP_ENV === "production" && (e.FIRESTORE_EMULATOR_HOST || e.FIREBASE_AUTH_EMULATOR_HOST)) {
+  if (e.APP_ENV === "production" && (e.FIRESTORE_EMULATOR_HOST || e.FIREBASE_AUTH_EMULATOR_HOST || e.FIREBASE_STORAGE_EMULATOR_HOST)) {
     throw new Error("Refusing to start: emulator hosts must not be set when APP_ENV=production.");
   }
   cached = e;

@@ -1,0 +1,833 @@
+diff --git a/apphosting.yaml b/apphosting.yaml
+index 85b7527..a8f5628 100644
+--- a/apphosting.yaml
++++ b/apphosting.yaml
+@@ -12,6 +12,12 @@ env:
+     value: production
+   - variable: INTEGRATION_MODE
+     value: live
++  - variable: NEXT_PUBLIC_INTEGRATION_MODE
++    value: live
++    availability: [BUILD, RUNTIME]
++  - variable: NEXT_PUBLIC_USE_EMULATORS
++    value: "false"
++    availability: [BUILD, RUNTIME]
+   - variable: NEXT_PUBLIC_SITE_URL
+     value: https://REPLACE-WITH-DOMAIN
+     availability: [BUILD, RUNTIME]
+@@ -34,6 +40,9 @@ env:
+   - variable: NEXT_PUBLIC_RAZORPAY_KEY_ID
+     value: REPLACE
+     availability: [BUILD, RUNTIME]
++  - variable: RAZORPAY_KEY_ID
++    value: REPLACE
++    availability: [RUNTIME]
+   # Secrets (Cloud Secret Manager names)
+   - variable: RAZORPAY_KEY_SECRET
+     secret: razorpay-key-secret
+diff --git a/docs/NEXT_STEP_CLAUDE_PROMPT.md b/docs/NEXT_STEP_CLAUDE_PROMPT.md
+new file mode 100644
+index 0000000..9916ff3
+--- /dev/null
++++ b/docs/NEXT_STEP_CLAUDE_PROMPT.md
+@@ -0,0 +1,48 @@
++# Paste this into Claude Code in the existing website folder
++
++Continue the existing Raj Raani Collections project. Work in this repository, preserve its architecture and maroon/ivory design, and implement the next milestone: payment recovery and staging readiness. Do not regenerate the website or replace the stack.
++
++First read CLAUDE.md, docs/DECISIONS.md, docs/READINESS_REVIEW.md, docs/PROGRESS.md, docs/TEST_REPORT.md, docs/OWNER_SETUP.md and docs/DEPLOYMENT.md. Inspect git status and recent commits. If the readiness fixes are not present, apply the provided `readiness-fixes.patch` using `git apply --check` followed by `git apply`. Stop on conflicts and resolve deliberately; never discard existing work. The patch is based on commit 3b3ba26. Read tests/unit/http-security.test.ts and tests/integration/payment-regressions.test.ts.
++
++Implement the following in order, using failing regression tests for the money/state bugs and updating progress after each coherent change.
++
++## 1. Recover uncertain refunds safely
++
++- Trace executeRefund, applyRefundEvent, jobs, the payment adapter and the admin order UI. Persist a durable dispatch record before making the provider call, including order/payment/refund identity and stable request identity. Do not assume a Razorpay receipt is a provider-enforced idempotency key; consult current official API documentation.
++- Keep processing refunds locked, including those with no provider ID. A timeout, dropped connection or process crash cannot prove that money did not move. Do not add an automatic timed unlock or blindly send again.
++- Support verified reconciliation for known IDs and unknown-ID outcomes using available provider retrieval/listing capabilities and stable identity. If matching is ambiguous, retain needs-review and require a documented provider check. Never rely on amount alone or trust a browser-supplied refund status.
++- Retain authenticated early/unknown refund webhooks as unresolved evidence and replay them after correlation. Make completed states terminal and handle duplicate/out-of-order events.
++- Add a protected, recent-admin recovery action with audit trail and an understandable admin UI. Preserve caps on refunds, stock accounting and privacy. Define exactly when a failed refund is safe to retry.
++- Test concurrent dispatch, provider acceptance followed by timeout, crash after acceptance, early webhook, duplicate webhook, stale failed event, wrong payment/amount correlation, ambiguous matching and successful recovery. Demonstrate one money movement under concurrent retry/recovery.
++
++## 2. Resolve payment-after-COD exceptions
++
++- Read the paymentExceptions subcollection written by applyPaymentCaptured. Display unresolved captures and their verified amounts/IDs to admins through server DTOs.
++- Guard new confirmation, processing and shipment operations when an unresolved payment exception remains. Keep existing fulfilled order history intact; flag already-shipped orders for courier/payment review.
++- Provide an audited resolution flow appropriate to whether COD was already collected or a courier shipment was created. Do not silently reset fulfilment, allocate stock again, or create an automatic extra refund. Use verified provider evidence for money-changing decisions.
++- Ensure generic clear_review cannot bypass an unresolved payment exception or uncertain refund.
++- Test repeated capture delivery, one stock allocation, preserved processing/shipped state, guarded shipping and authorised reconciliation.
++
++## 3. Make messaging states truthful
++
++- Inspect the outbox worker, tracking-link API and customer/admin copy. Enqueued, previewed, delivered and failed are different states; `sent: true` cannot imply delivery when only a preview exists.
++- Preserve a clearly labelled local preview. In live mode fail explicitly when delivery is unconfigured, or report a truthful queued/unavailable result without exposing private links.
++- Add an adapter for the owner-selected vendor only when that choice is known. If missing, finish the interface, safe failure behaviour and mocked contract tests, then document the single owner decision needed. Never invent credentials or deliver real messages during tests.
++
++## 4. Correct TTL fields
++
++- Store rateLimits.expiresAt and idempotencyKeys.expiresAt as Firestore date/time values, verified by reading persisted documents. Update the ISO-date convention with this exception.
++- Leave reservation expiry comparisons functioning; do not convert every timestamp globally.
++- Add a bounded, resumable, dry-run-first migration for existing TTL strings with explicit target safeguards. Do not run it against cloud data without authorisation. TTL is delayed cleanup, not access control or exact business expiry.
++
++## 5. Prepare external-service staging gates
++
++- Test reservation expiry during payment-order creation, obsolete payment-attempt failure, and provider acceptance before local persistence. Reject stale mutations and avoid orphan/duplicate requests through durable identity and reconciliation.
++- Trace Shiprocket partial booking/AWB failure and retry. Persist and recover existing provider IDs; do not rebook blindly. Remove hardcoded parcel assumptions only with validated settings/owner inputs.
++- Re-run npm audit --omit=dev. Resolve compatible dependency findings with a reviewed upgrade/replacement plan. Do not use npm audit fix --force or silently downgrade the framework/Firebase. Verify affected exports, imports, Firebase, build and browser flows.
++
++Run npm ci, npm run check, npm run test:int, npm run test:rules, seeded purchase/auth/access/admin Playwright tests and npm run build. Document actual outcomes and blocked checks separately; do not turn existing author-reported results into newly verified results. Start/stop emulator processes cleanly. No test should use production keys or customer data.
++
++Update READINESS_REVIEW.md, TEST_REPORT.md, PROGRESS.md and relevant decisions/setup docs with implemented recovery behaviour, exact commands, residual blockers and the next action. Keep owner-dependent tasks explicit. Preserve draft legal labels and placeholder-photo attribution.
++
++Finish with a concise change summary, verification evidence, remaining owner inputs and a concrete staging checklist. Do not deploy, enable real payments, provision paid infrastructure or make irreversible cloud changes. Prepare the project so owner approval and credentials are the final steps after the work is reviewable.
+diff --git a/docs/PROGRESS.md b/docs/PROGRESS.md
+index 9b5da9f..dcff141 100644
+--- a/docs/PROGRESS.md
++++ b/docs/PROGRESS.md
+@@ -1,6 +1,6 @@
+ # Progress
+ 
+-Last updated: 2026-10-04. Nothing has been deployed; no paid infrastructure exists; no live payment or provider call has been made.
++Last updated: 2026-10-05. Nothing has been deployed; no paid infrastructure exists; no live payment or provider call has been made. Independent readiness review and local fixes are recorded in READINESS_REVIEW.md.
+ 
+ ## Milestones
+ | Milestone | Status |
+@@ -23,4 +23,6 @@ Legal identity/GSTIN/grievance officer; real photos and logo; Razorpay, Shiprock
+ `npm install`, then `npm run dev:local` (emulators + seed on first run + Next dev) -> http://localhost:3000. Admin: admin@rajraani.test / Demo#Passw0rd (emulator only).
+ 
+ ## Exact next action
+-Owner: review docs/OWNER_SETUP.md and supply items in sections A-D. Developer (after credentials): follow docs/DEPLOYMENT.md, run Razorpay test-mode and Shiprocket sandbox checks listed under "Needs real services" in docs/TEST_REPORT.md. Deployment requires explicit owner approval.
++Developer: complete payment/refund recovery, payment-exception fulfilment guards, truthful messaging states, TTL date fields and provider retry checks using docs/NEXT_STEP_CLAUDE_PROMPT.md. Current local tests passing is not production readiness; review docs/READINESS_REVIEW.md before cloud setup.
++
++Owner: collect docs/OWNER_SETUP.md inputs in parallel. After recovery gates pass, configure isolated staging and exercise providers with test credentials using docs/DEPLOYMENT.md. Production deployment requires explicit owner approval.
+diff --git a/docs/READINESS_REVIEW.md b/docs/READINESS_REVIEW.md
+new file mode 100644
+index 0000000..f2aec7c
+--- /dev/null
++++ b/docs/READINESS_REVIEW.md
+@@ -0,0 +1,57 @@
++# Readiness review — 5 October 2026
++
++Reviewed repository: https://github.com/advit-s/website
++Base commit: `3b3ba26e7559ef2097fd372196d26eb9f073ebf6`.
++
++## Verdict
++
++The project is a substantial local implementation, but it is not ready to accept real customer payments. Passing the original suite did not cover several payment/refund races. This review adds bounded fixes and regression tests. It does not certify the entire application or verify real providers.
++
++Changes are local on `codex/rajraani-readiness-review`; nothing was pushed, deployed, or purchased. No real customer data or credentials were used.
++
++## Fixed in this patch
++
++| Finding | Result |
++|---|---|
++| Fresh `npm ci` rejected missing lockfile entries | Regenerated lockfile; fresh install succeeded in the initial review run. Package manifest and requested versions unchanged. |
++| Mutation origin validation trusted incoming host/forwarded-host headers and ignored scheme | Only the configured site origin is trusted, including scheme and port. Preview deployments must configure their own site URL. |
++| Production could retain a Storage emulator host | All three emulator hosts are now rejected in production. |
++| Competing checkouts with different payloads and the same key could reuse another order | Stored payload hash is checked again inside the transaction. |
++| Late online capture after a switch to COD deducted stock again and reset fulfilment | Preserve COD/stock/fulfilment; retain capture evidence in `orders/{id}/paymentExceptions`, set review flag and internal timeline. Requires reconciliation before launch. |
++| Callback reported paid after amount validation rejected the capture | Return status from persisted payment/review state. |
++| Refund already processing but awaiting its provider ID could be sent again | Every processing refund is locked against another dispatch. |
++| Transport timeout marked a refund failed and invited unsafe retry | Unknown outcome remains processing, is flagged for review, and returns `REFUND_UNCERTAIN`. Recovery remains a next-milestone requirement. |
++| Late failed event could undo a completed refund | Completed refund is terminal; unknown/duplicate events do not mutate totals. |
++| Hosting template omitted browser live-mode values and server Razorpay key ID | Explicit live mode, no browser emulators, and server key-ID placeholder added. Real values still required. |
++
++Four security tests and six payment regression tests were added. The initial review reproduced three security failures and all six payment regressions against the base code, then passed them after these changes.
++
++## Independent verification
++
++Linux, Node 24.19.0, temporary Java 21.0.6; Firebase demo project and simulated providers only.
++
++| Check | Outcome |
++|---|---|
++| TypeScript and ESLint (`npm run check`) | Passed |
++| Unit suite | 48 passed |
++| Integration suite (Firestore/Auth emulators) | 64 passed |
++| Firestore/Storage rules suite | 16 passed |
++| Seed | 19 products, 48 variants, 3 accounts, 9 demo orders created in emulators |
++| Production build with local demo environment | Passed; this verifies compilation, not production service configuration |
++| Browser suite | See final verification note in TEST_REPORT.md; original author results remain separately attributed |
++| Production dependency audit | 9 reported package findings: 5 high, 4 moderate; these are not nine distinct exploitable vulnerabilities |
++
++Existing author-reported Windows/browser results are retained in TEST_REPORT.md and are not represented as independent results here.
++
++## Next milestone: recovery and staging readiness
++
++1. **Refund reconciliation.** `fetchRefund` exists in the adapter but has no service caller. A processing refund with no provider ID has no supported recovery operation. Unknown-ID refund webhooks are ignored. Persist dispatch identity, recover outcomes through verified provider evidence, and retain/replay early events. Never unlock an uncertain request merely because time elapsed. Add authenticated admin recovery and audit records.
++2. **Payment exceptions and fulfilment.** The new COD exception evidence has no dedicated admin resolution flow. `needsReview` blocks confirmation only; an already-processing order can still ship. Add explicit exception display/resolution and guards for onward fulfilment; account for courier COD collection and extra captured payments. Generic `clear_review` must not erase unresolved money exceptions.
++3. **Notification delivery.** Only the preview adapter exists even in live mode. `/api/track-order/link` returns `sent: true` after enqueueing, while no vendor delivers the link. Add a real owner-selected adapter or make unavailable/queued/preview states truthful. Protect secure-link access and redact tokens from logs.
++4. **TTL storage type.** `rateLimits.expiresAt` and `idempotencyKeys.expiresAt` are ISO strings, while their policies use Firestore TTL. Standard-edition TTL requires a date/time value: https://firebase.google.com/docs/firestore/ttl. Change only TTL fields to Firestore timestamps, test persisted type, and plan a bounded migration for existing strings. Reservation ISO dates have active string comparisons and must not be blindly converted. TTL deletion is asynchronous and must not enforce business expiry.
++5. **Provider retry/race audit.** Payment attempt creation and courier booking call external services before final local state is persisted. Test crashes, retries, expiry during provider calls, obsolete-attempt failures, and partial shipment/AWB success. Reconcile existing external objects before creating replacements. Shiprocket parcel dimensions are currently hardcoded; use owner-supplied parcel information and verify serviceability in staging.
++6. **Dependencies.** Audit currently flags Firebase/gRPC, Next/PostCSS, and ExcelJS/gaxios/uuid chains. Suggested forced fixes include downgrades or major upgrades. Resolve with compatible releases/replacements and targeted regression checks; document any residual findings and reachability instead of claiming a clean audit.
++
++After recovery work: configure isolated Firebase staging, Razorpay test keys/webhooks, courier test facilities where available, messaging and Anthropic. Rehearse purchase/cancel/refund/recovery with evidence. Then owner supplies real catalogue photos/logo, legal identity/GST/tax inputs, grievance details, and reviewed policies. Assess nonce CSP, mobile accessibility/performance, indexes, backup/restore, and job scheduling before a separately approved production release.
++
++Use NEXT_STEP_CLAUDE_PROMPT.md to continue the existing project. Do not restart from an empty folder or rebuild the design.
+diff --git a/docs/TEST_REPORT.md b/docs/TEST_REPORT.md
+index 9227a4d..a0bc1ea 100644
+--- a/docs/TEST_REPORT.md
++++ b/docs/TEST_REPORT.md
+@@ -1,5 +1,25 @@
+ # Test report
+ 
++## Independent readiness review — 2026-10-05
++
++The original Windows results below are author-reported and kept for provenance. A separate Linux review at base commit `3b3ba26` added four security tests and six payment regression tests, and applied the fixes described in READINESS_REVIEW.md. This review used Node 24.19.0, Java 21.0.6, Firebase emulators and simulated providers only.
++
++| Command/check | Independent result |
++|---|---|
++| Fresh `npm ci --ignore-scripts` | Initially failed on missing lockfile entries; succeeded after lockfile regeneration in the initial review run |
++| `npm run check` | TypeScript and ESLint passed; 48 unit tests passed |
++| `npx vitest run --project integration` inside Auth/Firestore/Storage emulators | 64 passed: checkout 24, admin 26, assistants 8, new payment regressions 6 |
++| `npx vitest run --project rules` inside emulators | 16 passed |
++| `npm run seed` | Succeeded against demo emulators |
++| `npm run build` with `.env.local` demo configuration and emulators running | Succeeded; no production provider verification implied |
++| Playwright purchase/auth/access rerun | Not run: Chromium and Headless Shell downloads both failed with invalid/truncated ZIP errors; no system browser available |
++| `npm audit --omit=dev` | 9 package findings: 5 high, 4 moderate; unresolved |
++| `git diff --check` | Passed |
++
++The initial failing regression runs reproduced the defects; the patched suites passed independently again when work resumed. No cloud service, real payment, courier, messaging or model call was exercised. Refund recovery and payment-exception resolution remain explicit release blockers; see NEXT_STEP_CLAUDE_PROMPT.md.
++
++## Original implementation report — 2026-10-04
++
+ Date: 2026-10-04. Environment: Windows 11, Node 24, Java 25, Firebase emulators (Auth, Firestore, Storage), Next dev server, Chromium via Playwright.
+ Everything below ran against **emulators and simulated providers only**. No cloud project, live payment, live courier or live AI call was made.
+ 
+diff --git a/package-lock.json b/package-lock.json
+index 6e74bad..27b1be0 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -149,8 +149,7 @@
+       "resolved": "https://registry.npmjs.org/@electric-sql/pglite/-/pglite-0.3.16.tgz",
+       "integrity": "sha512-mZkZfOd9OqTMHsK+1cje8OSzfAQcpD7JmILXTl5ahdempjUDdmg4euf1biDex5/LfQIDJ3gvCu6qDgdnDxfJmA==",
+       "dev": true,
+-      "license": "Apache-2.0",
+-      "peer": true
++      "license": "Apache-2.0"
+     },
+     "node_modules/@electric-sql/pglite-tools": {
+       "version": "0.2.21",
+@@ -162,6 +161,29 @@
+         "@electric-sql/pglite": "0.3.16"
+       }
+     },
++    "node_modules/@emnapi/core": {
++      "version": "1.11.3",
++      "resolved": "https://registry.npmjs.org/@emnapi/core/-/core-1.11.3.tgz",
++      "integrity": "sha512-zLpS5asjEb7lq8jYLq37N6XKaE41DIexlY1rF/z4/tIl3wo13Sqm28fRyfIsKZD+NZ8mM5RoKkpW/rBcuoSZSg==",
++      "dev": true,
++      "license": "MIT",
++      "optional": true,
++      "peer": true,
++      "dependencies": {
++        "@emnapi/wasi-threads": "1.2.3",
++        "tslib": "^2.4.0"
++      }
++    },
++    "node_modules/@emnapi/runtime": {
++      "version": "1.11.3",
++      "resolved": "https://registry.npmjs.org/@emnapi/runtime/-/runtime-1.11.3.tgz",
++      "integrity": "sha512-Xz4Tpyki7XyrpbUK1jR1AhdAdaXyhhY4lZ3neLodmhpuWfy2PAQN5B46sAiU4liOXGLkHypn/qU+jvfWSCYYLA==",
++      "license": "MIT",
++      "optional": true,
++      "dependencies": {
++        "tslib": "^2.4.0"
++      }
++    },
+     "node_modules/@emnapi/wasi-threads": {
+       "version": "1.2.3",
+       "resolved": "https://registry.npmjs.org/@emnapi/wasi-threads/-/wasi-threads-1.2.3.tgz",
+@@ -169,6 +191,7 @@
+       "dev": true,
+       "license": "MIT",
+       "optional": true,
++      "peer": true,
+       "dependencies": {
+         "tslib": "^2.4.0"
+       }
+@@ -870,7 +893,6 @@
+       "resolved": "https://registry.npmjs.org/@firebase/app/-/app-0.16.2.tgz",
+       "integrity": "sha512-fyCLPahl3r0Zb7Wzm+JLWcOOH3SaDgAyJzJ8EWIDiv51aNiv+2Pjbpa6myEuP7iXxjmJqrcbVm0GUF7h229T1Q==",
+       "license": "Apache-2.0",
+-      "peer": true,
+       "dependencies": {
+         "@firebase/component": "0.7.5",
+         "@firebase/logger": "0.5.2",
+@@ -938,7 +960,6 @@
+       "resolved": "https://registry.npmjs.org/@firebase/app-compat/-/app-compat-0.5.18.tgz",
+       "integrity": "sha512-77H57WuGEsgrv59HdtuhHG+eQdP8di6myz7O93yW6yTZlR/tLSmsCxCq5vHp6AWWDwSV0EVtKUvizXQiQZVBWA==",
+       "license": "Apache-2.0",
+-      "peer": true,
+       "dependencies": {
+         "@firebase/app": "0.16.2",
+         "@firebase/component": "0.7.5",
+@@ -955,7 +976,6 @@
+       "resolved": "https://registry.npmjs.org/@firebase/app-types/-/app-types-0.9.6.tgz",
+       "integrity": "sha512-yPLahy7Esfu2w/yme3msVK4xTkDXQqq6szfQn8yVOQpCKiT5GVFjqNpLbuz6NkX0WuTwUidkmPewW3r4xkvpeg==",
+       "license": "Apache-2.0",
+-      "peer": true,
+       "dependencies": {
+         "@firebase/logger": "0.5.2"
+       }
+@@ -1443,7 +1463,6 @@
+       "integrity": "sha512-c/z/gaIlaaLZEuGbE6sLUuJ61tskg1JghvhcNQzW948ASBinbVBBRnZTC4b4yt4LaEtJQkYlyzqLHcutFwEIvA==",
+       "hasInstallScript": true,
+       "license": "Apache-2.0",
+-      "peer": true,
+       "dependencies": {
+         "tslib": "^2.1.0"
+       },
+@@ -4372,7 +4391,6 @@
+       "integrity": "sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==",
+       "devOptional": true,
+       "license": "Apache-2.0",
+-      "peer": true,
+       "engines": {
+         "node": ">=8.0.0"
+       }
+@@ -4435,7 +4453,6 @@
+       "version": "0.11.0",
+       "resolved": "https://registry.npmjs.org/@pkgjs/parseargs/-/parseargs-0.11.0.tgz",
+       "integrity": "sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==",
+-      "dev": true,
+       "license": "MIT",
+       "optional": true,
+       "engines": {
+@@ -4448,7 +4465,6 @@
+       "integrity": "sha512-oxMK4vllB9RK5NQ2l1pq1IfOf2AvnEuj/vYGDj0H2nMtmtZpKtCwt/l00GEO6xjGfpBNAvjovvYdCm50dRQkpQ==",
+       "devOptional": true,
+       "license": "Apache-2.0",
+-      "peer": true,
+       "dependencies": {
+         "playwright": "1.63.0"
+       },
+@@ -5187,6 +5203,72 @@
+         "node": ">=14.0.0"
+       }
+     },
++    "node_modules/@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/core": {
++      "version": "1.11.1",
++      "dev": true,
++      "inBundle": true,
++      "license": "MIT",
++      "optional": true,
++      "dependencies": {
++        "@emnapi/wasi-threads": "1.2.2",
++        "tslib": "^2.4.0"
++      }
++    },
++    "node_modules/@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/runtime": {
++      "version": "1.11.1",
++      "dev": true,
++      "inBundle": true,
++      "license": "MIT",
++      "optional": true,
++      "dependencies": {
++        "tslib": "^2.4.0"
++      }
++    },
++    "node_modules/@tailwindcss/oxide-wasm32-wasi/node_modules/@emnapi/wasi-threads": {
++      "version": "1.2.2",
++      "dev": true,
++      "inBundle": true,
++      "license": "MIT",
++      "optional": true,
++      "dependencies": {
++        "tslib": "^2.4.0"
++      }
++    },
++    "node_modules/@tailwindcss/oxide-wasm32-wasi/node_modules/@napi-rs/wasm-runtime": {
++      "version": "1.1.4",
++      "dev": true,
++      "inBundle": true,
++      "license": "MIT",
++      "optional": true,
++      "dependencies": {
++        "@tybys/wasm-util": "^0.10.1"
++      },
++      "funding": {
++        "type": "github",
++        "url": "https://github.com/sponsors/Brooooooklyn"
++      },
++      "peerDependencies": {
++        "@emnapi/core": "^1.7.1",
++        "@emnapi/runtime": "^1.7.1"
++      }
++    },
++    "node_modules/@tailwindcss/oxide-wasm32-wasi/node_modules/@tybys/wasm-util": {
++      "version": "0.10.2",
++      "dev": true,
++      "inBundle": true,
++      "license": "MIT",
++      "optional": true,
++      "dependencies": {
++        "tslib": "^2.4.0"
++      }
++    },
++    "node_modules/@tailwindcss/oxide-wasm32-wasi/node_modules/tslib": {
++      "version": "2.8.1",
++      "dev": true,
++      "inBundle": true,
++      "license": "0BSD",
++      "optional": true
++    },
+     "node_modules/@tailwindcss/oxide-win32-arm64-msvc": {
+       "version": "4.3.3",
+       "resolved": "https://registry.npmjs.org/@tailwindcss/oxide-win32-arm64-msvc/-/oxide-win32-arm64-msvc-4.3.3.tgz",
+@@ -5323,7 +5405,6 @@
+       "integrity": "sha512-N0rFCuH9YoxG9/m61l9MfpJKfmLOVU0em7ipIz6TRgSSkvReLB9vL85GB+yr8Bs5leqpvg96JSwF4ZS1s4viQg==",
+       "devOptional": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "csstype": "^3.2.2"
+       }
+@@ -5390,7 +5471,6 @@
+       "integrity": "sha512-CG4nPk1f2zc8yw4pALqHsFYH2hdo+h1T9daSp21+Hnxi9LOE3GT9hAfTKJCBXVNM2GmYs1eMEP615wPoeOgk3A==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@typescript-eslint/scope-manager": "8.71.0",
+         "@typescript-eslint/types": "8.71.0",
+@@ -6134,7 +6214,6 @@
+       "integrity": "sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "bin": {
+         "acorn": "bin/acorn"
+       },
+@@ -6707,7 +6786,6 @@
+       "integrity": "sha512-AIPKioV7/Y/8KfZ3AAhjPJxLLbY49S64Ym5DakZlUg75qQiTgUq9hEJoEwa4eUezPUlXRy/i5NpsKvo9jgKmoA==",
+       "dev": true,
+       "license": "Apache-2.0",
+-      "peer": true,
+       "peerDependencies": {
+         "bare-abort-controller": "*"
+       },
+@@ -8926,7 +9004,6 @@
+       "deprecated": "This version is no longer supported. Please see https://eslint.org/version-support for other options.",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@eslint-community/eslint-utils": "^4.8.0",
+         "@eslint-community/regexpp": "^4.12.1",
+@@ -9100,7 +9177,6 @@
+       "integrity": "sha512-whOE1HFo/qJDyX4SnXzP4N6zOWn79WhnCUY/iDR0mPfQZO8wcYE4JClzI2oZrhBnnMUCBCHZhO6VQyoBU95mZA==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "@rtsao/scc": "^1.1.0",
+         "array-includes": "^3.1.9",
+@@ -9666,7 +9742,6 @@
+       "integrity": "sha512-Bdcs4+3qlpVlx2NRn6fgX2Ue2/gGRaPeawebgclM0ERSCqDpA+owF1fdPwjJUTAJWMTuAaxjDf+hzb0/4eKvvw==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "accepts": "~1.3.8",
+         "array-flatten": "1.1.1",
+@@ -10021,7 +10096,6 @@
+       "resolved": "https://registry.npmjs.org/firebase/-/firebase-12.19.0.tgz",
+       "integrity": "sha512-kwXCLcI0ly2lkwygkbuRx6SsX3DSO96355YrWh9SWZ5ncsxK/y5cirn3sY6nZVSiBVE++2nL6Hchzu1EB8uohQ==",
+       "license": "Apache-2.0",
+-      "peer": true,
+       "dependencies": {
+         "@firebase/ai": "2.16.0",
+         "@firebase/analytics": "0.10.25",
+@@ -11375,7 +11449,6 @@
+       "integrity": "sha512-CQ46U0ZkAGmbT/4UxdzzGJpacP2IeKgY4a5/tOI9AABbpOMfK739wfDXmv1usCk+3RkKj1hQy4/fjhiwa2xlrA==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=16.9.0"
+       }
+@@ -13342,7 +13415,6 @@
+       "integrity": "sha512-rqRix3/TWzE9rIoFGIn8JmsVfhiuC8VIQ8IdX5TfzmeBucdY05/0UlzKaw0eVtpcN/OdVFpBk7CjKGo9iHJ/zA==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "bin": {
+         "marked": "bin/marked.js"
+       },
+@@ -14547,7 +14619,6 @@
+       "integrity": "sha512-aL96AHANtWjPLDOLqnhx+ngp9+UK7ETEU8VJrDCGvsSSi/mGLcWYsS6Herg7lmaBJe4uwrfqsa7gTEFaSizDoQ==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "pg-connection-string": "^2.14.1",
+         "pg-pool": "^3.14.0",
+@@ -14705,7 +14776,6 @@
+       "integrity": "sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==",
+       "devOptional": true,
+       "license": "Apache-2.0",
+-      "peer": true,
+       "bin": {
+         "playwright-core": "cli.js"
+       },
+@@ -15148,7 +15218,6 @@
+       "resolved": "https://registry.npmjs.org/react/-/react-19.3.0.tgz",
+       "integrity": "sha512-E8LUcbtBWt20bbl2YoHfx4ZDBdxVTfOKtCZn9cDSJ4l6/nuoApcpIBcj47t2wZoVX8g2ZHuMHbiShgCR1T5Sog==",
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=0.10.0"
+       }
+@@ -15158,7 +15227,6 @@
+       "resolved": "https://registry.npmjs.org/react-dom/-/react-dom-19.3.0.tgz",
+       "integrity": "sha512-JDk8dgif51OjFoDE70+OT9ICyYr+69HlmihNwp1+Nsfbna3t5sIiCa9ZJktDmQ4/1b/rn26hIAR2uYXDMr5r0Q==",
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "scheduler": "^0.28.0"
+       },
+@@ -16886,7 +16954,6 @@
+       "integrity": "sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=12"
+       },
+@@ -17056,7 +17123,6 @@
+       "integrity": "sha512-Yiex1Ovn8z2xPpOWckIiysV1SSyRMY9BkLF++q0yKiDxCqRhosKfMg3janKkiLBwZ5c/YryloKwGZcrEmtwxKw==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "esbuild": "~0.28.0"
+       },
+@@ -17203,7 +17269,6 @@
+       "integrity": "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==",
+       "dev": true,
+       "license": "Apache-2.0",
+-      "peer": true,
+       "bin": {
+         "tsc": "bin/tsc",
+         "tsserver": "bin/tsserver"
+@@ -17534,7 +17599,6 @@
+       "integrity": "sha512-4XP60spRGjSZFf1qYH+dJIkK2znL3zQfl9KkOV9MkkRR/3Dls0dxaBsQPTloEc5BLXWPL9vsOxopxyKoMmDueg==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "dependencies": {
+         "esbuild": "^0.27.0 || ^0.28.0",
+         "fdir": "^6.5.0",
+@@ -17651,7 +17715,6 @@
+       "integrity": "sha512-qcJu88Q2IWqJsDD529JKMdwGm/dvInW4HvQnRwiH9JtihJvzGOscDtHE3x1pBKeUOTysQ8kVmLnJ2kJu7yhcGA==",
+       "dev": true,
+       "license": "MIT",
+-      "peer": true,
+       "engines": {
+         "node": ">=12"
+       },
+@@ -18272,7 +18335,6 @@
+       "resolved": "https://registry.npmjs.org/zod/-/zod-4.6.5.tgz",
+       "integrity": "sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==",
+       "license": "MIT",
+-      "peer": true,
+       "funding": {
+         "url": "https://github.com/sponsors/colinhacks"
+       }
+diff --git a/src/server/env.ts b/src/server/env.ts
+index 6101ce8..2b6870d 100644
+--- a/src/server/env.ts
++++ b/src/server/env.ts
+@@ -52,7 +52,7 @@ export function env(): Env {
+   if (e.APP_ENV === "production" && e.INTEGRATION_MODE !== "live") {
+     throw new Error("Refusing to start: INTEGRATION_MODE must be 'live' when APP_ENV=production (simulations are local/staging only).");
+   }
+-  if (e.APP_ENV === "production" && (e.FIRESTORE_EMULATOR_HOST || e.FIREBASE_AUTH_EMULATOR_HOST)) {
++  if (e.APP_ENV === "production" && (e.FIRESTORE_EMULATOR_HOST || e.FIREBASE_AUTH_EMULATOR_HOST || e.FIREBASE_STORAGE_EMULATOR_HOST)) {
+     throw new Error("Refusing to start: emulator hosts must not be set when APP_ENV=production.");
+   }
+   cached = e;
+diff --git a/src/server/http.ts b/src/server/http.ts
+index e6e27aa..ca90199 100644
+--- a/src/server/http.ts
++++ b/src/server/http.ts
+@@ -26,7 +26,6 @@ export const conflict = (code: string, msg: string, extra?: Record<string, unkno
+  */
+ export function assertSameOrigin(req: Request): void {
+   const origin = req.headers.get("origin");
+-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
+   if (!origin) throw new HttpError(403, "BAD_ORIGIN", "Missing Origin header.");
+   let o: URL;
+   try {
+@@ -35,8 +34,9 @@ export function assertSameOrigin(req: Request): void {
+     throw new HttpError(403, "BAD_ORIGIN", "Invalid Origin header.");
+   }
+   const site = new URL(env().NEXT_PUBLIC_SITE_URL);
+-  const allowed = new Set([site.host, host ?? ""]);
+-  if (!allowed.has(o.host)) throw new HttpError(403, "BAD_ORIGIN", "Cross-origin request blocked.");
++  // Only configuration establishes trust. Request-controlled Host / forwarded headers must
++  // not extend the allowlist; compare the scheme and port as well as the hostname.
++  if (o.origin !== site.origin) throw new HttpError(403, "BAD_ORIGIN", "Cross-origin request blocked.");
+ }
+ 
+ export async function readJson<S extends z.ZodTypeAny>(req: Request, schema: S, maxBytes = 64 * 1024): Promise<z.infer<S>> {
+diff --git a/src/server/services/admin-orders.ts b/src/server/services/admin-orders.ts
+index 67d79ab..96c7d99 100644
+--- a/src/server/services/admin-orders.ts
++++ b/src/server/services/admin-orders.ts
+@@ -273,7 +273,7 @@ export async function executeRefund(orderId: string, refundId: string, actor: st
+     if (o.paymentMethod !== "razorpay") throw badRequest("Cash-on-delivery refunds are recorded manually (bank transfer / UPI reference), not sent through a provider.");
+     if (!o.payment.razorpayPaymentId) throw conflict("NO_PAYMENT", "There is no captured payment to refund.");
+     if (r.state === "completed") throw conflict("ALREADY_DONE", "This refund is already completed.");
+-    if (r.state === "processing" && r.providerRefundId) throw conflict("IN_PROGRESS", "This refund has been sent to the provider and is settling.");
++    if (r.state === "processing") throw conflict("IN_PROGRESS", "This refund is in progress or awaiting reconciliation. Do not send it again.");
+     const refunds = o.payment.refunds.map((x) => (x.id === refundId ? { ...x, state: "processing" as const, updatedAt: nowIso() } : x));
+     tx.update(orderRef(orderId), { "payment.refunds": refunds, updatedAt: nowIso(), version: o.version + 1 });
+     auditInTx(tx, actor, "refund.execute.start", orderId, { refundId, amount: r.amount });
+@@ -290,11 +290,14 @@ export async function executeRefund(orderId: string, refundId: string, actor: st
+ 
+   await db().runTransaction(async (tx) => {
+     const o = orderFromDoc(await tx.get(orderRef(orderId)));
+-    const state = errorMsg || result?.status === "failed" ? ("failed" as const) : result?.status === "processed" ? ("completed" as const) : ("processing" as const);
+-    const refunds = o.payment.refunds.map((x) => (x.id === refundId ? { ...x, state, providerRefundId: result?.id ?? x.providerRefundId, updatedAt: nowIso(), reason: errorMsg ? `${x.reason} [provider error: ${errorMsg}]`.slice(0, 300) : x.reason } : x));
++    // A timeout/transport failure is ambiguous: the provider may already have
++    // moved money. Keep the claim locked until its real outcome is reconciled.
++    const state = errorMsg ? ("processing" as const) : result?.status === "failed" ? ("failed" as const) : result?.status === "processed" ? ("completed" as const) : ("processing" as const);
++    const refunds = o.payment.refunds.map((x) => (x.id === refundId && x.state !== "completed" ? { ...x, state, providerRefundId: result?.id ?? x.providerRefundId, updatedAt: nowIso(), reason: errorMsg ? `${x.reason} [provider outcome unknown: ${errorMsg}]`.slice(0, 300) : x.reason } : x));
+     const refundedTotal = refunds.filter((x) => x.state === "completed").reduce((s, x) => s + x.amount, 0);
+     const paymentStatus = refundedTotal >= o.pricing.total ? "refunded" : refundedTotal > 0 ? "partially_refunded" : o.paymentStatus;
+     const patch: Record<string, unknown> = { "payment.refunds": refunds, "payment.refundedTotal": refundedTotal, paymentStatus, updatedAt: nowIso(), version: o.version + 1 };
++    if (errorMsg) patch.needsReview = true;
+     if (state === "completed" && o.returnStatus === "refund_pending") patch.returnStatus = "closed";
+     tx.update(orderRef(orderId), patch);
+     addTimeline(tx, orderId, { type: `refund.${state}`, label: state === "completed" ? "Refund completed" : state === "failed" ? "Refund attempt failed" : "Refund is being processed", detail: errorMsg, customerVisible: state !== "failed", actor });
+@@ -302,7 +305,7 @@ export async function executeRefund(orderId: string, refundId: string, actor: st
+   });
+   const after = orderFromDoc(await orderRef(orderId).get());
+   if (!errorMsg) await enqueueNotification({ kind: "order.refund", to: { email: after.contact.email, phone: after.contact.phone }, data: { orderNumber: after.orderNumber, state: result?.status === "processed" ? "completed" : "processing" }, dedupeKey: `refund_${refundId}` });
+-  if (errorMsg) throw conflict("PROVIDER_ERROR", `The payment provider did not complete the refund: ${errorMsg}. It is marked failed and can be retried.`);
++  if (errorMsg) throw conflict("REFUND_UNCERTAIN", "The refund outcome is unknown. It remains locked for reconciliation; check the provider before taking further action.");
+   return after;
+ }
+ 
+diff --git a/src/server/services/checkout.ts b/src/server/services/checkout.ts
+index 2ef7780..d84605c 100644
+--- a/src/server/services/checkout.ts
++++ b/src/server/services/checkout.ts
+@@ -97,7 +97,15 @@ export async function placeOrder(input: CheckoutInput, ctx: PlaceOrderContext):
+     outcome = await db().runTransaction(async (tx) => {
+       // ---- reads ----
+       const idem = await tx.get(idemRef);
+-      if (idem.exists) return { reusedOrderId: (idem.data() as { orderId: string }).orderId };
++      if (idem.exists) {
++        const existing = idem.data() as { requestHash: string; orderId: string };
++        // The earlier lookup can miss a competing transaction. Validate the stored
++        // request again here before granting access to its order.
++        if (existing.requestHash !== requestHash) {
++          throw new HttpError(422, "IDEMPOTENCY_KEY_REUSED", "This request key was already used for a different order. Please refresh and try again.");
++        }
++        return { reusedOrderId: existing.orderId };
++      }
+       const counterRef = col(C.counters).doc("orders");
+       const counter = await tx.get(counterRef);
+       const variants = await readVariants(tx, stockLines);
+diff --git a/src/server/services/payment-events.ts b/src/server/services/payment-events.ts
+index 9140868..d4a9729 100644
+--- a/src/server/services/payment-events.ts
++++ b/src/server/services/payment-events.ts
+@@ -24,7 +24,7 @@ export interface CaptureArgs {
+ 
+ export type CaptureResult =
+   | { applied: true; orderId: string; outcome: "confirmed" | "revived" | "needs_review" }
+-  | { applied: false; orderId: string | null; reason: "already_paid" | "unknown_order" | "amount_mismatch" | "cancelled_by_staff" };
++  | { applied: false; orderId: string | null; reason: "already_paid" | "unknown_order" | "amount_mismatch" | "cancelled_by_staff" | "unexpected_payment_method" };
+ 
+ const PAID_STATES = new Set(["paid", "partially_refunded", "refunded"]);
+ 
+@@ -45,6 +45,19 @@ export async function applyPaymentCaptured(a: CaptureArgs): Promise<CaptureResul
+     const ref = orderRef(orderId);
+     const snap = await tx.get(ref);
+     const order = orderFromDoc(snap);
++    // A previously opened online checkout can capture after the customer switched
++    // to COD. That order already allocated stock (and may already be shipped).
++    // Preserve its fulfilment/payment state and retain evidence for reconciliation.
++    if (order.paymentMethod !== "razorpay") {
++      const exceptionRef = ref.collection("paymentExceptions").doc(sha256(a.paymentId));
++      const prior = await tx.get(exceptionRef);
++      if (!prior.exists) {
++        tx.set(exceptionRef, { ...a, createdAt: nowIso(), status: "needs_review" });
++        tx.update(ref, { needsReview: true, "payment.lastError": "Online payment captured after switching to COD. Reconcile payment and courier collection before fulfilment.", updatedAt: nowIso(), version: order.version + 1 });
++        addTimeline(tx, orderId, { type: "payment.after_cod_switch", label: "Online payment received after COD switch - manual reconciliation required", detail: a.paymentId, customerVisible: false, actor: "provider" });
++      }
++      return { applied: false, orderId, reason: "unexpected_payment_method" };
++    }
+     if (PAID_STATES.has(order.paymentStatus)) return { applied: false, orderId, reason: "already_paid" };
+ 
+     if (a.currency !== "INR" || a.amount !== order.pricing.total) {
+@@ -159,7 +172,8 @@ export async function verifyCheckoutCallback(orderId: string, cb: { providerOrde
+   if (p.orderId !== cb.providerOrderId) throw badRequest("Payment does not match the order.");
+   if (p.status === "captured") {
+     await applyPaymentCaptured({ providerOrderId: p.orderId, paymentId: p.id, amount: p.amount, currency: p.currency, source: "callback" });
+-    return { status: "paid", orderNumber: order.orderNumber };
++    const verified = orderFromDoc(await orderRef(orderId).get());
++    return { status: PAID_STATES.has(verified.paymentStatus) && !verified.needsReview ? "paid" : "pending", orderNumber: order.orderNumber };
+   }
+   if (p.status === "failed") {
+     await applyPaymentFailed({ providerOrderId: p.orderId, paymentId: p.id, reason: p.errorDescription });
+@@ -336,6 +350,9 @@ export async function applyRefundEvent(paymentId: string, providerRefundId: stri
+   if (!doc) return;
+   await db().runTransaction(async (tx) => {
+     const order = orderFromDoc(await tx.get(doc.ref));
++    const existing = order.payment.refunds.find((r) => r.providerRefundId === providerRefundId);
++    // Unknown events must not mutate totals; completed money movement is terminal.
++    if (!existing || existing.state === "completed" || (existing.state === "failed" && status === "failed")) return;
+     const refunds = order.payment.refunds.map((r) => (r.providerRefundId === providerRefundId ? { ...r, state: status === "processed" ? ("completed" as const) : ("failed" as const), updatedAt: nowIso() } : r));
+     const refundedTotal = refunds.filter((r) => r.state === "completed").reduce((s, r) => s + r.amount, 0);
+     const paymentStatus = refundedTotal >= order.pricing.total ? "refunded" : refundedTotal > 0 ? "partially_refunded" : order.paymentStatus;
+@@ -343,4 +360,3 @@ export async function applyRefundEvent(paymentId: string, providerRefundId: stri
+     addTimeline(tx, order.id, { type: "refund.event", label: `Refund ${status === "processed" ? "completed" : "failed"}`, detail: providerRefundId, customerVisible: true, actor: "provider" });
+   });
+ }
+-
+diff --git a/tests/integration/payment-regressions.test.ts b/tests/integration/payment-regressions.test.ts
+new file mode 100644
+index 0000000..441b617
+--- /dev/null
++++ b/tests/integration/payment-regressions.test.ts
+@@ -0,0 +1,90 @@
++import { beforeAll, afterEach, expect, it, vi } from "vitest";
++import { db } from "@/server/firebase/admin";
++import { C, newId } from "@/server/repos/common";
++import { placeOrder } from "@/server/services/checkout";
++import { applyPaymentCaptured, applyRefundEvent, switchToCod } from "@/server/services/payment-events";
++import { executeRefund, applyOrderAction } from "@/server/services/admin-orders";
++import { orderFromDoc, orderRef } from "@/server/services/order-core";
++import { payments } from "@/server/providers/payments";
++import { checkoutInput, ensureSettings, getVariant, makeProduct } from "../helpers/fixtures";
++
++beforeAll(ensureSettings);
++afterEach(() => vi.restoreAllMocks());
++const getOrder = async (id: string) => orderFromDoc(await orderRef(id).get());
++
++async function prepaid() {
++  const f = await makeProduct({ stocks: [5] });
++  const vid = f.variants[0]!.id;
++  const r = await placeOrder(checkoutInput(vid, 1, { paymentMethod: "razorpay" }), { userId: null, idempotencyKey: newId("idem_") });
++  return { vid, r, capture: { providerOrderId: r.payment!.providerOrderId, paymentId: newId("pay_"), amount: r.total, currency: "INR", source: "webhook" as const } };
++}
++
++it("late online capture after a COD switch cannot deduct stock twice or reset fulfilment", async () => {
++  const { vid, r, capture } = await prepaid();
++  await switchToCod(r.orderId);
++  await orderRef(r.orderId).update({ status: "processing" });
++  await applyPaymentCaptured(capture);
++  expect((await getVariant(vid)).stock).toBe(4);
++  const o = await getOrder(r.orderId);
++  expect(o.status).toBe("processing");
++  expect(o.paymentMethod).toBe("cod");
++  expect(o.needsReview).toBe(true);
++});
++
++async function refundable() {
++  const { r, capture } = await prepaid();
++  await applyPaymentCaptured(capture);
++  await applyOrderAction(r.orderId, { type: "refund_request", amount: 100, reason: "Partial refund" }, "admin_test");
++  const o = await getOrder(r.orderId);
++  return { r, capture, refund: o.payment.refunds[0]! };
++}
++
++it("a refund already dispatched cannot be dispatched a second time while its provider id is pending", async () => {
++  const { r, refund } = await refundable();
++  const o = await getOrder(r.orderId);
++  await orderRef(r.orderId).update({ "payment.refunds": o.payment.refunds.map(x => ({ ...x, state: "processing" })) });
++  await expect(executeRefund(r.orderId, refund.id, "admin_test")).rejects.toMatchObject({ code: "IN_PROGRESS" });
++});
++
++it("a refund timeout leaves an uncertain result locked for reconciliation, not available for retry", async () => {
++  const { r, refund } = await refundable();
++  // A transport timeout cannot tell us whether money already moved at the provider.
++  vi.spyOn(payments(), "refund").mockRejectedValue(new Error("request timed out"));
++  await expect(executeRefund(r.orderId, refund.id, "admin_test")).rejects.toMatchObject({ code: "REFUND_UNCERTAIN" });
++  expect((await getOrder(r.orderId)).payment.refunds[0]!.state).toBe("processing");
++  expect((await getOrder(r.orderId)).needsReview).toBe(true);
++  await expect(executeRefund(r.orderId, refund.id, "admin_test")).rejects.toMatchObject({ code: "IN_PROGRESS" });
++});
++
++it("late failed refund events cannot undo a completed refund", async () => {
++  const { r, capture, refund } = await refundable();
++  await orderRef(r.orderId).update({
++    "payment.refunds": [{ ...refund, providerRefundId: "rfnd_test", state: "completed" }],
++    "payment.refundedTotal": refund.amount,
++    paymentStatus: "partially_refunded",
++  });
++  await applyRefundEvent(capture.paymentId, "rfnd_test", "failed");
++  expect((await getOrder(r.orderId)).payment.refunds[0]!.state).toBe("completed");
++  expect((await getOrder(r.orderId)).payment.refundedTotal).toBe(refund.amount);
++});
++
++it("a captured callback with a mismatched amount does not report paid", async () => {
++  const { r, capture } = await prepaid();
++  const { verifyCheckoutCallback } = await import("@/server/services/payment-events");
++  vi.spyOn(payments(), "verifyCheckoutSignature").mockReturnValue(true);
++  vi.spyOn(payments(), "fetchPayment").mockResolvedValue({ id: capture.paymentId, orderId: capture.providerOrderId, amount: capture.amount - 1, currency: "INR", status: "captured", method: "upi", errorDescription: null });
++  const result = await verifyCheckoutCallback(r.orderId, { providerOrderId: capture.providerOrderId, paymentId: capture.paymentId, signature: "verified-by-provider-adapter" });
++  expect(result.status).toBe("pending");
++  expect((await getOrder(r.orderId)).needsReview).toBe(true);
++});
++
++it("concurrent different payloads sharing an idempotency key cannot receive each other's order", async () => {
++  const f = await makeProduct({ stocks: [10] });
++  const key = newId("idem_");
++  const results = await Promise.allSettled([1, 2].map(quantity => placeOrder(checkoutInput(f.variants[0]!.id, quantity), { userId: null, idempotencyKey: key })));
++  expect(results.filter(x => x.status === "fulfilled")).toHaveLength(1);
++  const rejected = results.find(x => x.status === "rejected") as PromiseRejectedResult;
++  expect(rejected.reason.code).toBe("IDEMPOTENCY_KEY_REUSED");
++  const stored = await db().collection(C.idempotency).where("orderId", "==", (results.find(x => x.status === "fulfilled") as PromiseFulfilledResult<{orderId: string}>).value.orderId).get();
++  expect(stored.size).toBe(1);
++});
+diff --git a/tests/unit/http-security.test.ts b/tests/unit/http-security.test.ts
+new file mode 100644
+index 0000000..717a267
+--- /dev/null
++++ b/tests/unit/http-security.test.ts
+@@ -0,0 +1,41 @@
++import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
++
++beforeEach(() => {
++  vi.resetModules();
++  vi.stubEnv("APP_ENV", "local");
++  vi.stubEnv("NEXT_PUBLIC_SITE_URL", "https://shop.example.test");
++});
++afterEach(() => vi.unstubAllEnvs());
++
++describe("mutation origin validation", () => {
++  it("accepts the configured origin behind a proxy", async () => {
++    const { assertSameOrigin } = await import("@/server/http");
++    expect(() => assertSameOrigin(new Request("https://internal.test/api/cart", {
++      headers: { origin: "https://shop.example.test", host: "internal.test" },
++    }))).not.toThrow();
++  });
++
++  it("does not let request headers add a trusted origin", async () => {
++    const { assertSameOrigin } = await import("@/server/http");
++    expect(() => assertSameOrigin(new Request("https://shop.example.test/api/cart", {
++      headers: { origin: "https://attacker.test", host: "attacker.test", "x-forwarded-host": "attacker.test" },
++    }))).toThrow("Cross-origin request blocked");
++  });
++
++  it("rejects a different scheme even when the host matches", async () => {
++    const { assertSameOrigin } = await import("@/server/http");
++    expect(() => assertSameOrigin(new Request("https://shop.example.test/api/cart", {
++      headers: { origin: "http://shop.example.test" },
++    }))).toThrow("Cross-origin request blocked");
++  });
++});
++
++describe("production environment", () => {
++  it("rejects the Storage emulator in production", async () => {
++    vi.stubEnv("APP_ENV", "production");
++    vi.stubEnv("INTEGRATION_MODE", "live");
++    vi.stubEnv("FIREBASE_STORAGE_EMULATOR_HOST", "127.0.0.1:9199");
++    const { env } = await import("@/server/env");
++    expect(() => env()).toThrow(/emulator hosts/);
++  });
++});

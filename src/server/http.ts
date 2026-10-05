@@ -26,7 +26,6 @@ export const conflict = (code: string, msg: string, extra?: Record<string, unkno
  */
 export function assertSameOrigin(req: Request): void {
   const origin = req.headers.get("origin");
-  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host");
   if (!origin) throw new HttpError(403, "BAD_ORIGIN", "Missing Origin header.");
   let o: URL;
   try {
@@ -35,8 +34,9 @@ export function assertSameOrigin(req: Request): void {
     throw new HttpError(403, "BAD_ORIGIN", "Invalid Origin header.");
   }
   const site = new URL(env().NEXT_PUBLIC_SITE_URL);
-  const allowed = new Set([site.host, host ?? ""]);
-  if (!allowed.has(o.host)) throw new HttpError(403, "BAD_ORIGIN", "Cross-origin request blocked.");
+  // Only configuration establishes trust. Request-controlled Host / forwarded headers must
+  // not extend the allowlist; compare the scheme and port as well as the hostname.
+  if (o.origin !== site.origin) throw new HttpError(403, "BAD_ORIGIN", "Cross-origin request blocked.");
 }
 
 export async function readJson<S extends z.ZodTypeAny>(req: Request, schema: S, maxBytes = 64 * 1024): Promise<z.infer<S>> {
