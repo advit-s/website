@@ -1,6 +1,6 @@
 import "server-only";
 import { createHash } from "node:crypto";
-import { C, col, nowIso } from "./repos/common";
+import { C, col, nowIso, ttlTimestamp } from "./repos/common";
 import { db } from "./firebase/admin";
 import { HttpError } from "./http";
 
@@ -35,7 +35,7 @@ export async function rateLimit(rule: RateLimitRule, subject: string): Promise<{
         rule: rule.name,
         count: current + 1,
         windowStart: new Date(windowStart).toISOString(),
-        expiresAt: new Date(windowStart + windowMs * 2).toISOString(),
+        expiresAt: ttlTimestamp(windowStart + windowMs * 2), // a Timestamp (not an ISO string) so the Firestore TTL policy applies
         updatedAt: nowIso(),
       });
       return { allowed: true, count: current + 1 };

@@ -40,7 +40,7 @@ Fill in **Admin -> Settings -> Legal identity**. Until then the legal pages show
 | Razorpay | Account, KYC, **Key ID + Key Secret**, **webhook secret**; start with Test mode | online payments + refunds |
 | Shiprocket | API user (email/password), pickup location name, webhook token; or keep booking manually | courier booking/tracking |
 | Anthropic | API key + a **current model id** from their models page (set `ANTHROPIC_MODEL`) and a spend limit | customer + admin assistants |
-| Messaging provider (**your choice - not decided in the documents**) | Options: WhatsApp Business API provider, an SMS gateway with DLT registration (India), or transactional email | order confirmations, shipping updates, tracking links. Until chosen, messages are only recorded as previews in Admin -> Settings |
+| Messaging provider (**your choice - not decided in the documents; the ONE decision that unblocks customer messages**) | Options: WhatsApp Business API provider, an SMS gateway with DLT registration (India), or transactional email | order confirmations, shipping updates, secure tracking links. Until chosen: the local demo stores previews (nothing is sent) and a live build marks messages "unavailable" and tells customers it cannot send links. The interface, safe failure behaviour and mocked contract tests are ready; once you choose, the adapter is a small, testable addition (sender identity, approved templates and DLT/template ids are needed) |
 | Domain + hosting | Domain name, DNS access | go-live |
 | Backups | Decide retention and who restores | DPDP / business continuity |
 
@@ -50,7 +50,8 @@ Fill in **Admin -> Settings -> Legal identity**. Until then the legal pages show
 3. **Data retention**: assistant conversations (default 365 days), order records (kept for accounting/tax - confirm the period with your accountant), what happens on an account-deletion request
    (the app does not delete orders; build the process with your advisor).
 4. **Marketing consent**: the app sends no marketing and has no newsletter. If you want one, a consent flow and a vendor are needed.
-5. **Whether to use Shiprocket automation or manual booking** at launch (manual booking with AWB entry works today).
+5. **Whether to use Shiprocket automation or manual booking** at launch (manual booking with AWB entry works today). If automated: your **standard parcel size (cm) and packaging weight** (Admin > Settings > Courier parcel) - booking refuses to guess them - and a Shiprocket sandbox/staging account to verify the adapter.
+5a. **Policy when a customer pays online AND by cash on delivery** (an old payment window captures after they switched to COD). The system refunds the extra online payment by default, after verifying it with Razorpay; keeping the online payment instead needs your decision because it changes what the courier must collect.
 6. **Custom-order payments**: the app records quotes/advances; collecting the advance online needs a verified Razorpay payment-link integration (not built - no fabricated links).
 7. **Review system, lookbook, blog, comparison, appointments**: deliberately deferred by the sitemap.
 

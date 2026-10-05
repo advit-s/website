@@ -5,6 +5,8 @@ import { addTimeline, orderFromDoc, orderRef, sha256 } from "./order-core";
 import { applyStock, readVariants, type StockLine } from "./stock";
 import { enqueueNotification } from "./notifications";
 import { payments } from "../providers/payments";
+import { applyRefundEvent } from "./refunds";
+import { recordPaymentException } from "./payment-exceptions";
 import { getPublicSettingsFresh } from "../repos/settings";
 import { invalidate } from "../cache";
 import { badRequest, conflict, notFound } from "../http";
@@ -24,7 +26,7 @@ export interface CaptureArgs {
 
 export type CaptureResult =
   | { applied: true; orderId: string; outcome: "confirmed" | "revived" | "needs_review" }
-  | { applied: false; orderId: string | null; reason: "already_paid" | "unknown_order" | "amount_mismatch" | "cancelled_by_staff" | "unexpected_payment_method" };
+  | { applied: false; orderId: string | null; reason: "already_paid" | "duplicate_capture" | "unknown_order" | "amount_mismatch" | "cancelled_by_staff" | "unexpected_payment_method" };
 
 const PAID_STATES = new Set(["paid", "partially_refunded", "refunded"]);
 
@@ -49,16 +51,18 @@ export async function applyPaymentCaptured(a: CaptureArgs): Promise<CaptureResul
     // to COD. That order already allocated stock (and may already be shipped).
     // Preserve its fulfilment/payment state and retain evidence for reconciliation.
     if (order.paymentMethod !== "razorpay") {
-      const exceptionRef = ref.collection("paymentExceptions").doc(sha256(a.paymentId));
-      const prior = await tx.get(exceptionRef);
-      if (!prior.exists) {
-        tx.set(exceptionRef, { ...a, createdAt: nowIso(), status: "needs_review" });
-        tx.update(ref, { needsReview: true, "payment.lastError": "Online payment captured after switching to COD. Reconcile payment and courier collection before fulfilment.", updatedAt: nowIso(), version: order.version + 1 });
-        addTimeline(tx, orderId, { type: "payment.after_cod_switch", label: "Online payment received after COD switch - manual reconciliation required", detail: a.paymentId, customerVisible: false, actor: "provider" });
-      }
+      await recordPaymentException(tx, order, a, "after_cod_switch");
       return { applied: false, orderId, reason: "unexpected_payment_method" };
     }
-    if (PAID_STATES.has(order.paymentStatus)) return { applied: false, orderId, reason: "already_paid" };
+    if (PAID_STATES.has(order.paymentStatus)) {
+      // The same payment arriving by callback AND webhook is normal. A DIFFERENT captured payment on a paid order is real
+      // customer money that nothing else would ever look at: open an exception for it.
+      if (order.payment.razorpayPaymentId && a.paymentId !== order.payment.razorpayPaymentId) {
+        await recordPaymentException(tx, order, a, "duplicate_capture");
+        return { applied: false, orderId, reason: "duplicate_capture" };
+      }
+      return { applied: false, orderId, reason: "already_paid" };
+    }
 
     if (a.currency !== "INR" || a.amount !== order.pricing.total) {
       tx.update(ref, { needsReview: true, "payment.lastError": `Captured amount ${a.amount} ${a.currency} does not match order total ${order.pricing.total}`, updatedAt: nowIso(), version: order.version + 1 });
@@ -152,6 +156,8 @@ export async function applyPaymentFailed(a: { providerOrderId: string; paymentId
     const order = orderFromDoc(await tx.get(orderRef(orderId)));
     // Out-of-order safety: a failure event can never undo a captured payment or touch a cancelled order.
     if (PAID_STATES.has(order.paymentStatus) || order.status === "cancelled") return { applied: false };
+    // A failure of an OBSOLETE attempt (the customer already started a newer one) says nothing about the current attempt.
+    if (a.providerOrderId !== order.payment.razorpayOrderId) return { applied: false };
     tx.update(orderRef(orderId), { paymentStatus: "failed", "payment.lastError": (a.reason ?? "Payment failed").slice(0, 200), updatedAt: nowIso(), version: order.version + 1 });
     addTimeline(tx, orderId, { type: "payment.failed", label: "Payment failed", detail: a.reason ? a.reason.slice(0, 200) : null, customerVisible: true, actor: "provider" });
     return { applied: true };
@@ -293,7 +299,7 @@ interface RazorpayEvent {
   payload?: {
     payment?: { entity?: { id: string; order_id: string; amount: number; currency: string; status: string; error_description?: string | null } };
     order?: { entity?: { id: string; status?: string } };
-    refund?: { entity?: { id: string; payment_id: string; amount: number; status: string } };
+    refund?: { entity?: { id: string; payment_id: string; amount: number; status: string; receipt?: string | null } };
   };
 }
 
@@ -334,7 +340,7 @@ export async function handleRazorpayWebhook(rawBody: string, signature: string |
     case "refund.processed":
     case "refund.failed": {
       const r = evt.payload?.refund?.entity;
-      if (r) await applyRefundEvent(r.payment_id, r.id, evt.event === "refund.processed" ? "processed" : "failed");
+      if (r) await applyRefundEvent(r.payment_id, r.id, evt.event === "refund.processed" ? "processed" : "failed", { amount: r.amount, receipt: r.receipt ?? null });
       break;
     }
     default:
@@ -344,19 +350,5 @@ export async function handleRazorpayWebhook(rawBody: string, signature: string |
   return { status: 200, body: { ok: true } };
 }
 
-export async function applyRefundEvent(paymentId: string, providerRefundId: string, status: "processed" | "failed"): Promise<void> {
-  const q = await col(C.orders).where("payment.razorpayPaymentId", "==", paymentId).limit(1).get();
-  const doc = q.docs[0];
-  if (!doc) return;
-  await db().runTransaction(async (tx) => {
-    const order = orderFromDoc(await tx.get(doc.ref));
-    const existing = order.payment.refunds.find((r) => r.providerRefundId === providerRefundId);
-    // Unknown events must not mutate totals; completed money movement is terminal.
-    if (!existing || existing.state === "completed" || (existing.state === "failed" && status === "failed")) return;
-    const refunds = order.payment.refunds.map((r) => (r.providerRefundId === providerRefundId ? { ...r, state: status === "processed" ? ("completed" as const) : ("failed" as const), updatedAt: nowIso() } : r));
-    const refundedTotal = refunds.filter((r) => r.state === "completed").reduce((s, r) => s + r.amount, 0);
-    const paymentStatus = refundedTotal >= order.pricing.total ? "refunded" : refundedTotal > 0 ? "partially_refunded" : order.paymentStatus;
-    tx.update(doc.ref, { "payment.refunds": refunds, "payment.refundedTotal": refundedTotal, paymentStatus, updatedAt: nowIso(), version: order.version + 1 });
-    addTimeline(tx, order.id, { type: "refund.event", label: `Refund ${status === "processed" ? "completed" : "failed"}`, detail: providerRefundId, customerVisible: true, actor: "provider" });
-  });
-}
+// Refund event handling lives in refunds.ts (dispatch records, recovery, evidence replay).
+export { applyRefundEvent } from "./refunds";

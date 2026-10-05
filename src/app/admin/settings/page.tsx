@@ -39,12 +39,12 @@ export default async function AdminSettings() {
       <div className="mt-6 space-y-5">
         <CouponsManager coupons={coupons} />
         <Card title="Recent message previews">
-          <p className="mb-3 text-sm text-ink-muted">No messaging provider is connected, so customer messages are recorded here as previews and are <strong>not delivered</strong>. Choosing a provider is an owner decision (docs/OWNER_SETUP.md).</p>
+          <p className="mb-3 text-sm text-ink-muted">No messaging provider is connected. In the local demo, messages are stored here as <strong>previews</strong> and are <strong>not sent</strong>; in a live build they are marked <strong>unavailable</strong> instead of being silently dropped. Choosing a provider is an owner decision (docs/OWNER_SETUP.md).</p>
           {previews.length === 0 ? <p className="text-sm text-ink-muted">No messages yet.</p> : (
             <ul className="divide-y divide-line text-sm">
               {previews.map((m, i) => (
                 <li key={i} className="py-2">
-                  <p className="font-medium">{m.preview?.subject ?? m.kind} <span className="text-xs font-normal text-ink-muted">({m.status}{m.to.admin ? ", to staff" : ""})</span></p>
+                  <p className="font-medium">{m.preview?.subject ?? m.kind} <span className="text-xs font-normal text-ink-muted">({m.status === "previewed" ? "preview only - not sent" : m.status === "unavailable" ? "NOT SENT - no channel configured" : m.status === "delivered" ? "delivered" : m.status}{m.to.admin ? ", to staff" : ""})</span></p>
                   <p className="text-ink-muted">{m.preview?.body ?? "Waiting to be processed (run the outbox job)."}</p>
                 </li>
               ))}

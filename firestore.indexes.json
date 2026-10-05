@@ -18,6 +18,7 @@
     { "collectionGroup": "productVariants", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "categoryId", "order": "ASCENDING" }, { "fieldPath": "isLowStock", "order": "ASCENDING" }, { "fieldPath": "sku", "order": "ASCENDING" }] },
     { "collectionGroup": "stockReservations", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "expiresAt", "order": "ASCENDING" }] },
     { "collectionGroup": "notificationOutbox", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "nextAttemptAt", "order": "ASCENDING" }] },
+    { "collectionGroup": "notificationOutbox", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "status", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "ASCENDING" }] },
     { "collectionGroup": "stockLogs", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "variantId", "order": "ASCENDING" }, { "fieldPath": "changedAt", "order": "DESCENDING" }] },
     { "collectionGroup": "assistantLogs", "queryScope": "COLLECTION", "fields": [{ "fieldPath": "kind", "order": "ASCENDING" }, { "fieldPath": "createdAt", "order": "DESCENDING" }] }
   ],

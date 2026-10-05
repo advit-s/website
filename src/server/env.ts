@@ -29,6 +29,8 @@ const schema = z.object({
   SHIPROCKET_PASSWORD: z.string().optional(),
   SHIPROCKET_WEBHOOK_TOKEN: z.string().optional(),
   SHIPROCKET_PICKUP_LOCATION: z.string().optional(),
+  // Messaging (vendor not chosen yet - see docs/OWNER_SETUP.md). Unset/"none" = no real channel.
+  MESSAGING_PROVIDER: z.string().optional(),
   // AI
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().optional(),

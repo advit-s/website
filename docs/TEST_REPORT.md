@@ -1,5 +1,40 @@
 # Test report
 
+## Recovery and staging-readiness milestone - 2026-10-05
+
+Run by Claude Code on Windows 11, Node 24, Java 25, Firebase emulators (Auth, Firestore, Storage) and **simulated providers only**. No cloud project, real payment, courier, messaging or model call was made, and no production key or customer data was used. These are newly run results (not copied from the author-reported or independent reviews below). A clean `npm ci` was run first.
+
+| Command | Result |
+|---|---|
+| `npm ci` | succeeded (lockfile regenerated with the dependency overrides in D-37) |
+| `npm run check` (typecheck + ESLint + unit) | typecheck clean, ESLint 0 problems, **56 unit tests passed** (48 before; +8 for `src/domain/refunds.ts`) |
+| `npm run test:rules` | **16 passed** |
+| `npm run test:int` (Auth + Firestore emulators) | **121 passed in 9 files**: checkout 24, admin 26, assistants 8, payment-regressions 6 (existing 64) + **refund-recovery 18, payment-exceptions 9, messaging 11, ttl 6, provider-races 13 (new 57)** |
+| `npm run build` | succeeded after the dependency overrides |
+| `npx playwright test` (seeded stack via `npm run dev:local`, 76 specs incl. purchase, auth, auth-flows, access, admin, assistant, responsive 320-1440 px, axe, keyboard, security headers) | **76 passed** (10.0 min). A first attempt in this session produced spurious failures because log files written inside the project folder made the Next dev server recompile continuously; it was discarded and re-run with logs outside the project. |
+| `npm audit --omit=dev` | **0 vulnerabilities** (was 9: 5 high, 4 moderate), through scoped `overrides`, see D-37 and below |
+| `npm audit` (including dev tooling) | 16 findings (11 high, 5 moderate), all in development tooling: `firebase-tools` (pubsub/opentelemetry/proxy-agent/basic-ftp), `vitest`/`@vitest/mocker`, `eslint-config-next` (fast-glob/micromatch/braces), `re2`. Not shipped to production; not addressed (their fixes are major upgrades or are not available). Revisit before relying on a shared CI runner. |
+
+### What the new tests demonstrate
+- **Refund dispatch and recovery** (`refund-recovery.test.ts`): the dispatch record and lock exist before the provider is called; three concurrent dispatches produce exactly one provider refund; provider acceptance followed by a timeout leaves the refund locked and un-resendable (even with everything aged 30 days), and reconciliation by receipt completes it once with a single money movement; a crash after acceptance is recovered by the scheduled job; the job does not race a just-started dispatch; nothing found at the provider keeps the refund locked until a system search plus a written provider check makes it retry-safe with a new receipt; a definitive rejection is retry-safe; unproven failures are not retryable; unrelated same-amount refunds are never adopted, duplicate-receipt and wrong-amount matches are ambiguous/mismatch; an unreachable provider changes nothing; early webhooks without a receipt are kept as evidence and replayed after correlation; with our receipt they correlate immediately; duplicate webhooks change totals once; a stale `failed` after `completed` is ignored; wrong payment/amount events are not applied and flag the order; unknown-payment events are retained; a refund surfacing for a superseded attempt is flagged, not merged; the refund cap is re-checked on retry.
+- **Payment exceptions** (`payment-exceptions.test.ts`): repeated capture delivery keeps one exception, one stock allocation and the processing state; confirm/process/ship are blocked (and no courier booking is attempted); an already-shipped order keeps its history and is flagged for courier review while delivery can still be recorded; `clear_review` cannot bypass an exception or uncertain refund; refund of the extra payment is verified against the provider (mismatches refused), flows through the protected/recoverable refund path, leaves the COD order's own totals untouched and unblocks fulfilment when complete; "already refunded elsewhere" is accepted only with provider proof; a second capture on a paid order opens a `duplicate_capture` exception (previously ignored).
+- **Messaging** (`messaging.test.ts`): local builds store `previewed` (never `delivered`, no provider id, no stored secure link); live mode without a channel -> `unavailable` and nothing sent, re-queued and delivered once a (mocked) channel is configured; mocked-vendor contract: idempotency key, delivery receipt only after acceptance, retry/permanent-failure handling, secure link minted only at delivery; the endpoint answers `preview_only` / `queued` / 503 and never `sent: true`.
+- **TTL** (`ttl.test.ts`): persisted `rateLimits.expiresAt` and `idempotencyKeys.expiresAt` are Firestore Timestamps (read back from the documents), other timestamps remain ISO strings; the migration is dry-run-first, bounded, resumable, idempotent, leaves unparsable/missing values alone and uses `lastUpdateTime` preconditions; the target guard refuses anything but the emulator without project id + `--allow-cloud` + `CONFIRM_TTL_MIGRATION`.
+- **Provider races** (`provider-races.test.ts`): a hold that expires while a provider order is being created is rejected with the provider id retained on the order; an obsolete attempt's failure does not fail the current attempt; a provider order accepted before the process died is not half-recorded and the retry reuses the same receipt; concurrent new attempts converge on one live attempt; Shiprocket: AWB-step failure resumes without a second create, a completed booking is not repeated, unknown create outcome locks booking (attach verified by order number, or ship manually), definitive rejection clears the lock, concurrent clicks produce one booking; the live adapter (HTTP stubbed) refuses without owner parcel dimensions, sends them, and treats a create timeout as unknown.
+
+### Visual check
+Admin order pages were rendered against emulator data for (a) a COD order with a late online capture (payment-exception panel, blocked actions, review banner that explains why it cannot be cleared) and (b) a refund with an unknown outcome (locked refund, reconcile button, dispatch/receipt line). Checked by screenshot at 1440 px; no automated browser test covers these panels yet.
+
+### Not verified / blocked (needs real services or the owner)
+1. **Razorpay behaviour the recovery design relies on**: receipt-as-idempotency for refunds (duplicate receipt rejected), `GET /payments/:id/refunds` completeness and pagination, whether `refund.*` webhooks echo `receipt`, `refund.processed/failed` ordering. Taken from Razorpay's public API reference and **untested against Test Mode**. Rehearse in Test Mode: success, failure, duplicate receipt, delayed webhook, dashboard-created refund.
+2. **Shiprocket**: create/assign behaviour on repeat, and `GET /orders/show/{id}` (used by Attach booking) are unverified; needs a sandbox account. Serviceability lookups are not implemented.
+3. **Messaging vendor**: none chosen, so no real adapter exists (interface, safe failure and contract tests only).
+4. **Firestore TTL policies, indexes** (the new `notificationOutbox status+createdAt` index is declared), scheduled jobs (`refunds` every ~5 minutes) and the TTL migration against real data: not run (no cloud project).
+5. Firebase phone OTP over real SMS, backups/restore, Lighthouse/mobile performance, nonce-based CSP: unchanged from the earlier reports.
+6. Dev-tooling advisories listed above.
+
+---
+
 ## Independent readiness review — 2026-10-05
 
 The original Windows results below are author-reported and kept for provenance. A separate Linux review at base commit `3b3ba26` added four security tests and six payment regression tests, and applied the fixes described in READINESS_REVIEW.md. This review used Node 24.19.0, Java 21.0.6, Firebase emulators and simulated providers only.

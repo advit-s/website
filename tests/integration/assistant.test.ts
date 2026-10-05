@@ -121,7 +121,7 @@ describe("assistant availability states", () => {
       const { payments } = await import("@/server/providers/payments");
       await expect(payments().createOrder({ amount: 1000, receipt: "x" })).rejects.toMatchObject({ code: "NOT_CONFIGURED" });
       const { shipping } = await import("@/server/providers/shipping");
-      await expect(shipping().book({ orderNumber: "RRC-1", shippingAddress: { fullName: "A B", phone: "+919000000000", line1: "x", line2: "", city: "x", state: "Delhi", pincode: "110001", country: "IN" }, contact: { name: "A", email: "a@b.co", phone: "+919000000000" }, items: [], pricing: { total: 100 }, placedAt: new Date().toISOString(), paymentMethod: "cod" } as never)).rejects.toThrow(/not configured|SHIPROCKET/i);
+      await expect(shipping().book({ orderNumber: "RRC-1", shippingAddress: { fullName: "A B", phone: "+919000000000", line1: "x", line2: "", city: "x", state: "Delhi", pincode: "110001", country: "IN" }, contact: { name: "A", email: "a@b.co", phone: "+919000000000" }, items: [], pricing: { total: 100 }, placedAt: new Date().toISOString(), paymentMethod: "cod" } as never, { parcel: null })).rejects.toThrow(/not configured|SHIPROCKET/i);
     } finally {
       process.env = prev;
       vi.resetModules();

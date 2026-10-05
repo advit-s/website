@@ -29,7 +29,9 @@ export function integrationStatus(): IntegrationStatus {
       item("shiprocket", "Shiprocket shipping", has(e.SHIPROCKET_EMAIL, e.SHIPROCKET_PASSWORD), "API user present.", "Simulated bookings (clearly marked). Manual AWB entry always works."),
       item("shiprocket-webhook", "Shiprocket webhook token", has(e.SHIPROCKET_WEBHOOK_TOKEN), "Token present.", "Simulated tracking events."),
       item("anthropic", "AI assistants (Anthropic)", has(e.ANTHROPIC_API_KEY, e.ANTHROPIC_MODEL), "API key and model present.", "Assistants return a clearly labelled local response."),
-      { key: "messaging", label: "Customer notifications (SMS / WhatsApp / email)", state: "simulated" as const, detail: "No messaging vendor is selected yet. Messages are recorded as previews only; nothing is delivered to customers." },
+      sim
+        ? { key: "messaging", label: "Customer notifications (SMS / WhatsApp / email)", state: "simulated" as const, detail: "No messaging vendor is selected yet. Messages are stored as previews only; nothing is sent to anyone." }
+        : { key: "messaging", label: "Customer notifications (SMS / WhatsApp / email)", state: "missing" as const, detail: "No messaging channel is configured. Customer messages are NOT delivered and are held as 'unavailable' until one is set up (owner decision: docs/OWNER_SETUP.md)." },
       { key: "firebase", label: "Firebase project", state: e.FIRESTORE_EMULATOR_HOST ? ("simulated" as const) : "configured", detail: e.FIRESTORE_EMULATOR_HOST ? "Using local emulators (demo project)." : `Project ${e.NEXT_PUBLIC_FIREBASE_PROJECT_ID}.` },
     ],
   };

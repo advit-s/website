@@ -14,7 +14,8 @@ Source of truth for requirements: `RajRaani_*.pdf` + `RajRaani_Claude_Code_Maste
 | `npm run check` | typecheck + lint + unit tests |
 | `npm run test:unit` / `test:int` / `test:rules` / `test:e2e` | Vitest (pure) / Vitest vs emulators / rules tests / Playwright |
 | `npm run build` | production build (typecheck + lint run inside) |
-| `npm run jobs:expire\|outbox\|reconcile\|purge` | maintenance jobs (also `POST /api/jobs/<name>` with `JOB_SECRET`) |
+| `npm run jobs:expire\|outbox\|reconcile\|refunds\|purge` | maintenance jobs (also `POST /api/jobs/<name>` with `JOB_SECRET`). `refunds` re-checks refunds stuck `processing` against the provider |
+| `npm run migrate:ttl` | dry-run-first, resumable ISO-string -> Timestamp migration for TTL fields (emulator by default; cloud needs 3 explicit confirmations) |
 | `node scripts/shot.mjs <path> <width> [name] [--login=email] [--cart=variantIds]` | screenshot to `screenshots/` |
 
 Integration/E2E tests need the emulators running with seed data (`npm run dev:local`, or `npm run emulators` + `npm run seed`).
@@ -43,7 +44,11 @@ Integration/E2E tests need the emulators running with seed data (`npm run dev:lo
 6. No secret in `NEXT_PUBLIC_*`; no service-account JSON in the repo; production refuses simulated mode and emulator hosts (`server/env.ts`).
 7. Uploads are decoded and re-encoded with sharp; draft media is private; CSV/XLSX exports neutralise formula injection.
 8. AI assistants: customer = no tools, grounded context only; admin = read-only bounded tools. Neither can mutate data.
-9. Simulations are always labelled (`SimulationBadge`, "[Simulated ...]"); live mode with missing credentials throws `ConfigurationError` (never fakes success).
+9. Money movement never repeats on a guess (docs/DECISIONS.md D-32): a refund is locked `processing` with a persisted dispatch record (receipt) BEFORE the provider call; a timeout/crash leaves it `uncertain`, never unlocked by time; only verified provider evidence (fetch / list by receipt+payment+exact amount / authenticated webhook) or an audited manual attestation resolves it. A failed refund is retried only when `retrySafe`. Amount alone is never a match.
+10. Captures the order cannot apply become `paymentExceptions` (D-33): they block confirm/process/ship (before any courier call), are resolved by verified provider evidence, and cannot be cleared by generic `clear_review`.
+11. Messages: `previewed` is not `delivered` (D-34). Live mode without a channel is `unavailable`, never "sent". Private links are minted at delivery time and never stored.
+12. Courier booking is a persisted state machine (D-36): provider ids are stored as known, retries resume, unknown outcomes lock until attached/manual. Parcel size comes from owner settings.
+13. Simulations are always labelled (`SimulationBadge`, "[Simulated ...]"); live mode with missing credentials throws `ConfigurationError` (never fakes success).
 
 ## Design tokens (fixed by the brief; defined in `src/app/globals.css` `@theme`)
 maroon `#4A1020` (primary), wine `#6B1E2D` (hover/active), ivory `#FAF8F3` (bg), antique-gold `#D4AF37` (decorative; text only on maroon),

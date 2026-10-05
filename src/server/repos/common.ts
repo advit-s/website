@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../firebase/admin";
 
 export const C = {
@@ -30,6 +31,12 @@ export const C = {
 
 /** Server clock as ISO-8601 UTC. All writes originate on the server, so this is the authoritative timestamp (D-25). */
 export const nowIso = (): string => new Date().toISOString();
+/**
+ * Firestore TTL policies act ONLY on Timestamp fields. Use this for the `expiresAt` of rateLimits / idempotencyKeys (the documented
+ * exception to the ISO-string convention, D-25). TTL deletion is delayed cleanup - never rely on it for access control or business expiry.
+ */
+export const ttlTimestamp = (epochMs: number): Timestamp => Timestamp.fromMillis(epochMs);
+
 export const newId = (prefix = ""): string => `${prefix}${randomUUID().replace(/-/g, "").slice(0, 20)}`;
 
 export const col = (name: string) => db().collection(name);

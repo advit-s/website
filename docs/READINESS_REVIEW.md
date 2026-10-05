@@ -55,3 +55,17 @@ Existing author-reported Windows/browser results are retained in TEST_REPORT.md 
 After recovery work: configure isolated Firebase staging, Razorpay test keys/webhooks, courier test facilities where available, messaging and Anthropic. Rehearse purchase/cancel/refund/recovery with evidence. Then owner supplies real catalogue photos/logo, legal identity/GST/tax inputs, grievance details, and reviewed policies. Assess nonce CSP, mobile accessibility/performance, indexes, backup/restore, and job scheduling before a separately approved production release.
 
 Use NEXT_STEP_CLAUDE_PROMPT.md to continue the existing project. Do not restart from an empty folder or rebuild the design.
+
+## Update - recovery and staging-readiness milestone (2026-10-05, Claude Code)
+
+Implemented locally on the same branch; nothing deployed or pushed. Results are in TEST_REPORT.md (121 integration, 56 unit, 16 rules, 76 browser tests, clean build, `npm audit --omit=dev` 0). **Still not ready for real customer money**: the provider behaviours below are designed from public documentation and unrehearsed.
+
+| Item | Status | Where |
+|---|---|---|
+| 1. Uncertain refunds | Durable dispatch record + receipt before the provider call; processing/uncertain refunds stay locked (no timer, no blind resend); verified recovery by id or by receipt+payment+exact amount; ambiguity -> review; early/unknown webhooks kept as evidence and replayed; completed is terminal; recent-admin reconcile / attestation actions with audit; `refunds` job; exact retry rule documented | D-32, `src/server/services/refunds.ts`, `src/domain/refunds.ts`, admin order page |
+| 2. Payment-after-COD exceptions | Exceptions shown to admins; confirm/process/ship blocked (before any courier call); already-shipped orders flagged; verified refund or provider-proven "already refunded" resolution; `clear_review` cannot bypass; duplicate captures on paid orders now detected | D-33, `src/server/services/payment-exceptions.ts` |
+| 3. Messaging states | previewed / delivered / failed / unavailable are distinct; link minted at delivery and never stored; live mode without a channel fails explicitly; interface + mocked contract tests; **owner must choose the vendor** | D-34, `src/server/providers/messaging.ts` |
+| 4. TTL fields | Timestamps for the two TTL fields (verified on persisted docs); other dates unchanged; bounded resumable dry-run-first migration with three-way cloud safeguard | D-35, `scripts/migrate-ttl.ts` |
+| 5. Provider races / courier / dependencies | Expiry during order creation, obsolete-attempt failure and orphan provider orders handled and tested; Shiprocket booking is a persisted state machine with resume/attach and owner-supplied parcel size (no hardcoded dimensions); production audit 0 via scoped overrides (no force, no downgrade) | D-36, D-37, `src/server/services/shipment-booking.ts` |
+
+Residual risks and next actions: rehearse refunds/webhooks in Razorpay Test Mode and bookings in a Shiprocket sandbox (items in TEST_REPORT "Not verified"); owner chooses the messaging vendor, parcel size, and the policy for paid-online-and-COD cases (OWNER_SETUP); deploy indexes before traffic; run the TTL migration only if there is pre-existing cloud data and only with authorisation; add automated browser coverage for the new admin recovery panels; the 16 dev-tooling advisories remain.

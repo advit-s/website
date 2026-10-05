@@ -1,6 +1,6 @@
 import "server-only";
 import { FieldValue } from "firebase-admin/firestore";
-import { C, col, newId, nowIso } from "../repos/common";
+import { C, col, newId, nowIso, ttlTimestamp } from "../repos/common";
 import { db } from "../firebase/admin";
 import { fromDoc } from "../repos/catalog";
 import { getPublicSettingsFresh } from "../repos/settings";
@@ -215,7 +215,7 @@ export async function placeOrder(input: CheckoutInput, ctx: PlaceOrderContext): 
         customerVisible: true,
         actor: ctx.userId ? "customer" : "guest",
       });
-      tx.set(idemRef, { requestHash, orderId, userId: ctx.userId, createdAt: placedAt, expiresAt: new Date(Date.now() + 30 * 86_400_000).toISOString() });
+      tx.set(idemRef, { requestHash, orderId, userId: ctx.userId, createdAt: placedAt, expiresAt: ttlTimestamp(Date.now() + 30 * 86_400_000) });
       return { orderNumber };
     });
   } catch (e) {
@@ -305,12 +305,22 @@ export async function ensurePaymentAttempt(orderId: string, opts: { newAttempt?:
   const po = await provider.createOrder({ amount: order.pricing.total, receipt: `${order.orderNumber}-${order.payment.attempts + 1}`, notes: { orderNumber: order.orderNumber, orderId } });
 
   let expiresAt = rsvData.expiresAt;
-  const updated = await db().runTransaction(async (tx) => {
+  type Outcome = Order | { lost: "raced" | "expired" };
+  const updated: Outcome = await db().runTransaction(async (tx): Promise<Outcome> => {
     const cur = orderFromDoc(await tx.get(orderRef(orderId)));
     const rs = await tx.get(col(C.reservations).doc(order.reservationId!));
-    if (cur.payment.razorpayOrderId !== order.payment.razorpayOrderId || cur.paymentStatus === "paid" || cur.status === "cancelled") return null; // someone else won the race
+    const rd = rs.data() as { status?: string; expiresAt: string; hardExpiresAt: string } | undefined;
+    // The provider call took time. Re-check EVERYTHING that gated it: the hold may have expired or the order been cancelled/paid meanwhile.
+    const expired = cur.status === "cancelled" || !rd || rd.status !== "active" || rd.expiresAt <= nowIso();
+    const raced = cur.payment.razorpayOrderId !== order.payment.razorpayOrderId || cur.paymentStatus === "paid";
+    if (expired || raced) {
+      // The provider order exists but is never offered to the customer. Keep its id on the order (durable identity) so that,
+      // were it ever paid, the payment would still be matched and refunded rather than lost.
+      tx.update(orderRef(orderId), { "payment.providerOrderIds": FieldValue.arrayUnion(po.providerOrderId), updatedAt: nowIso() });
+      addTimeline(tx, orderId, { type: "payment.attempt_discarded", label: `A payment attempt was discarded (${expired ? "the stock hold expired" : "the order changed"} while it was being created)`, detail: po.providerOrderId, customerVisible: false, actor: "system" });
+      return { lost: expired ? "expired" : "raced" };
+    }
     const windowMs = settings.checkout.reservationMinutes * 60_000;
-    const rd = rs.data() as { expiresAt: string; hardExpiresAt: string };
     // A retry extends the hold by one window, never past the hard cap (bounded: no stock held forever).
     const extended = new Date(Math.min(new Date(rd.hardExpiresAt).getTime(), Date.now() + windowMs)).toISOString();
     if (wantsNew && extended > rd.expiresAt) {
@@ -329,9 +339,12 @@ export async function ensurePaymentAttempt(orderId: string, opts: { newAttempt?:
     addTimeline(tx, orderId, { type: "payment.attempt", label: `Payment attempt ${cur.payment.attempts + 1} started`, detail: null, customerVisible: false, actor: "system" });
     return { ...cur, payment: { ...cur.payment, razorpayOrderId: po.providerOrderId, attempts: cur.payment.attempts + 1 } } as Order;
   });
-  if (!updated) {
+  if ("lost" in updated) {
+    if (updated.lost === "expired") throw conflict("ORDER_EXPIRED", "Your stock hold expired while the payment was being prepared. Please place the order again.");
     const again = orderFromDoc(await orderRef(orderId).get());
-    return sessionFrom(again, expiresAt, maxAttempts)!;
+    const s = sessionFrom(again, expiresAt, maxAttempts);
+    if (!s) throw conflict("ORDER_EXPIRED", "This order can no longer be paid. Please place it again.");
+    return s;
   }
   return sessionFrom(updated, expiresAt, maxAttempts)!;
 }

@@ -14,7 +14,7 @@ export function TrackOrderForm({ initialOrder }: { initialOrder?: string }) {
   const [fe, setFe] = useState<Record<string, string>>({});
   const [result, setResult] = useState<PublicTracking | null>(null);
   const [creds, setCreds] = useState({ orderNumber: initialOrder ?? "", contact: "" });
-  const [link, setLink] = useState<{ sent: boolean; preview?: string } | null>(null);
+  const [link, setLink] = useState<{ status: "queued" | "preview_only"; preview?: string } | null>(null);
 
   async function lookup(e: React.FormEvent) {
     e.preventDefault();
@@ -43,7 +43,7 @@ export function TrackOrderForm({ initialOrder }: { initialOrder?: string }) {
     const r = await fetch("/api/track-order/link", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(creds) });
     const data = await r.json();
     setBusy(false);
-    if (r.ok) setLink({ sent: true, preview: data.simulatedPreviewLink });
+    if (r.ok) setLink({ status: data.status === "queued" ? "queued" : "preview_only", preview: data.simulatedPreviewLink });
     else setError(data?.error?.message ?? "Could not send the link.");
   }
 
@@ -96,15 +96,15 @@ export function TrackOrderForm({ initialOrder }: { initialOrder?: string }) {
             <Button type="button" variant="secondary" className="mt-3" onClick={sendLink} loading={busy}>
               <Mail className="size-4" aria-hidden /> Send me a secure link
             </Button>
-            {link?.sent && (
-              <div className="mt-3 space-y-2" role="status">
-                <Alert tone="success">A secure link has been queued for the contact details on this order. It works for 1 hour.</Alert>
-                {link.preview && (
-                  <div className="space-y-1 rounded-sm border border-warning/40 bg-warning-bg p-3 text-sm">
-                    <SimulationBadge what="email delivery" />
-                    <p>No messaging provider is connected, so nothing was actually sent. For local testing, open the link directly: <a href={link.preview} className="break-all text-maroon underline">{link.preview}</a></p>
-                  </div>
-                )}
+            {link?.status === "queued" && (
+              <div className="mt-3" role="status">
+                <Alert tone="info">We are sending a secure link to the contact details on this order. It can take a few minutes to arrive and works for 1 hour after it is sent. If nothing arrives, please contact us.</Alert>
+              </div>
+            )}
+            {link?.status === "preview_only" && (
+              <div className="mt-3 space-y-1 rounded-sm border border-warning/40 bg-warning-bg p-3 text-sm" role="status">
+                <SimulationBadge what="message delivery" />
+                <p>This is a local demo: <strong>no message was sent</strong> to anyone.{link.preview ? <> For testing only, open the link directly: <a href={link.preview} className="break-all text-maroon underline">{link.preview}</a></> : null}</p>
               </div>
             )}
           </div>

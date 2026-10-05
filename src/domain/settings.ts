@@ -94,6 +94,13 @@ export const privateSettingsSchema = z.object({
     retentionDays: z.number().int().min(1).max(730),
     dailyMessageCap: z.number().int().min(10).max(100000),
   }),
+  /** Courier booking inputs only the owner can supply. Live Shiprocket booking refuses to run until the parcel size is set. */
+  shipping: z.object({
+    parcel: z
+      .object({ lengthCm: z.number().min(1).max(200), breadthCm: z.number().min(1).max(200), heightCm: z.number().min(1).max(200) })
+      .nullable(),
+    packagingWeightGrams: z.number().int().min(0).max(5000),
+  }),
 });
 export type PrivateSettings = z.infer<typeof privateSettingsSchema>;
 
@@ -157,4 +164,5 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
 export const DEFAULT_PRIVATE_SETTINGS: PrivateSettings = {
   notifications: { orderAlertEmail: null, channel: "preview" },
   assistant: { customerEnabled: true, retentionDays: 365, dailyMessageCap: 2000 },
+  shipping: { parcel: null, packagingWeightGrams: 0 },
 };

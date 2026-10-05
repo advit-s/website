@@ -112,6 +112,18 @@ export interface RefundRecord {
   requestedAt: ISODate;
   updatedAt: ISODate;
   idempotencyKey: string;
+  /** Provider-visible receipt of the CURRENT dispatch attempt (stable identity used to find the refund again). */
+  receipt?: string | null;
+  /** Number of provider dispatch attempts started (a new attempt gets a new receipt). */
+  attempt?: number;
+  /** Payment this refund is drawn on when it is not the order's own captured payment (payment-exception refunds). */
+  paymentId?: string | null;
+  /** Set when the refund returns an extra capture recorded in `paymentExceptions`; never counts toward the order's own refund totals. */
+  exceptionId?: string | null;
+  /** True while a dispatch outcome is unknown (timeout, dropped connection, crash). Stays locked until verified. */
+  uncertain?: boolean;
+  /** True only when the provider (or an attested manual check) established that NO refund exists for the last attempt. */
+  retrySafe?: boolean;
 }
 
 export interface Address {
@@ -184,6 +196,10 @@ export interface OrderPayment {
   lastError: string | null;
   refunds: RefundRecord[];
   refundedTotal: Paise;
+  /** True while any refund is `processing` (queried by the refund reconciliation job). */
+  refundsPending?: boolean;
+  /** Provider payment ids captured outside the order's own flow (see paymentExceptions) so webhooks can find the order. */
+  exceptionPaymentIds?: string[];
 }
 
 export interface Order {

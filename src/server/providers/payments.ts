@@ -1,6 +1,8 @@
 import "server-only";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { C, col, newId, nowIso } from "../repos/common";
+import { db } from "../firebase/admin";
+import { ProviderError, classifyHttpFailure } from "./errors";
 import { env, isSimulated, requireConfigured } from "../env";
 import type { Paise } from "@/domain/money";
 
@@ -31,7 +33,11 @@ export interface ProviderRefund {
   paymentId: string;
   amount: Paise;
   status: "pending" | "processed" | "failed";
+  /** The receipt we supplied at creation; our stable identity for finding the refund again. Null if the provider did not echo one. */
+  receipt?: string | null;
 }
+
+export { ProviderError };
 
 export interface PaymentProvider {
   readonly mode: "simulated" | "live";
@@ -42,8 +48,11 @@ export interface PaymentProvider {
   verifyWebhookSignature(rawBody: string, signature: string): boolean;
   fetchPayment(paymentId: string): Promise<ProviderPayment>;
   fetchOrderPayments(providerOrderId: string): Promise<ProviderPayment[]>;
-  refund(p: { paymentId: string; amount: Paise; idempotencyKey: string; notes?: Record<string, string> }): Promise<ProviderRefund>;
+  /** `receipt` is sent to the provider as our stable identity for this attempt (Razorpay treats a repeated receipt on the same payment as a duplicate). */
+  refund(p: { paymentId: string; amount: Paise; receipt: string; notes?: Record<string, string> }): Promise<ProviderRefund>;
   fetchRefund(paymentId: string, refundId: string): Promise<ProviderRefund>;
+  /** All refunds the provider holds for a payment (bounded; throws ProviderError "unknown" if the list may be incomplete). */
+  listPaymentRefunds(paymentId: string): Promise<ProviderRefund[]>;
   /** Public key id for Checkout.js (null in simulated mode). */
   publicKeyId(): string | null;
 }
@@ -105,20 +114,28 @@ class SimulatedPayments implements PaymentProvider {
       return { id: s.id, orderId: d.orderId, amount: d.amount, currency: d.currency, status: d.status, method: d.method, errorDescription: d.errorDescription };
     });
   }
-  async refund(p: { paymentId: string; amount: Paise; idempotencyKey: string }): Promise<ProviderRefund> {
-    const ref = col(C.simPayments).doc(p.paymentId);
-    const d = await this.load(p.paymentId);
-    const existing = Object.entries(d.refunds ?? {}).find(([, r]) => r.key === p.idempotencyKey);
-    if (existing) return { id: existing[0], paymentId: p.paymentId, amount: existing[1].amount, status: existing[1].status };
-    const id = `rfnd_SIM${randomBytes(6).toString("hex")}`;
-    await ref.set({ refunds: { ...(d.refunds ?? {}), [id]: { amount: p.amount, status: "processed", key: p.idempotencyKey } } }, { merge: true });
-    return { id, paymentId: p.paymentId, amount: p.amount, status: "processed" };
+  async refund(p: { paymentId: string; amount: Paise; receipt: string }): Promise<ProviderRefund> {
+    // Mirrors the live behaviour: a repeated receipt on the same payment is rejected as a duplicate, not silently replayed.
+    return db().runTransaction(async (tx) => {
+      const ref = col(C.simPayments).doc(p.paymentId);
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new ProviderError("Simulated payment not found", "rejected", 400);
+      const d = snap.data() as SimPaymentDoc;
+      if (Object.values(d.refunds ?? {}).some((r) => r.key === p.receipt)) throw new ProviderError("Duplicate receipt found for this refund request.", "duplicate", 400);
+      const id = `rfnd_SIM${randomBytes(6).toString("hex")}`;
+      tx.set(ref, { refunds: { ...(d.refunds ?? {}), [id]: { amount: p.amount, status: "processed", key: p.receipt } } }, { merge: true });
+      return { id, paymentId: p.paymentId, amount: p.amount, status: "processed" as const, receipt: p.receipt };
+    });
   }
   async fetchRefund(paymentId: string, refundId: string): Promise<ProviderRefund> {
     const d = await this.load(paymentId);
     const r = d.refunds?.[refundId];
-    if (!r) throw new Error("Simulated refund not found");
-    return { id: refundId, paymentId, amount: r.amount, status: r.status };
+    if (!r) throw new ProviderError("Simulated refund not found", "rejected", 404);
+    return { id: refundId, paymentId, amount: r.amount, status: r.status, receipt: r.key };
+  }
+  async listPaymentRefunds(paymentId: string): Promise<ProviderRefund[]> {
+    const d = await this.load(paymentId);
+    return Object.entries(d.refunds ?? {}).map(([id, r]) => ({ id, paymentId, amount: r.amount, status: r.status, receipt: r.key }));
   }
   publicKeyId(): string | null {
     return null;
@@ -158,18 +175,25 @@ class RazorpayPayments implements PaymentProvider {
   }
   private async call<T>(method: "GET" | "POST", path: string, body?: unknown, extraHeaders?: Record<string, string>): Promise<T> {
     const { RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET } = this.creds();
-    const res = await fetch(`https://api.razorpay.com/v1${path}`, {
-      method,
-      headers: {
-        Authorization: "Basic " + Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64"),
-        "Content-Type": "application/json",
-        ...extraHeaders,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(15_000),
-      cache: "no-store",
-    });
-    const text = await res.text();
+    let res: Response;
+    let text: string;
+    try {
+      res = await fetch(`https://api.razorpay.com/v1${path}`, {
+        method,
+        headers: {
+          Authorization: "Basic " + Buffer.from(`${RAZORPAY_KEY_ID}:${RAZORPAY_KEY_SECRET}`).toString("base64"),
+          "Content-Type": "application/json",
+          ...extraHeaders,
+        },
+        body: body ? JSON.stringify(body) : undefined,
+        signal: AbortSignal.timeout(15_000),
+        cache: "no-store",
+      });
+      text = await res.text();
+    } catch (e) {
+      // Timeout / dropped connection: the request may or may not have been processed.
+      throw new ProviderError(`Razorpay ${method} ${path} did not complete: ${e instanceof Error ? e.message : "network error"}`, "unknown");
+    }
     let json: unknown;
     try {
       json = JSON.parse(text);
@@ -178,8 +202,10 @@ class RazorpayPayments implements PaymentProvider {
     }
     if (!res.ok) {
       const desc = (json as { error?: { description?: string } } | null)?.error?.description ?? `HTTP ${res.status}`;
-      throw new Error(`Razorpay ${method} ${path} failed: ${desc}`);
+      const dup = /duplicate receipt/i.test(desc);
+      throw new ProviderError(`Razorpay ${method} ${path} failed: ${desc}`, dup ? "duplicate" : classifyHttpFailure(res.status, json), res.status);
     }
+    if (json === null) throw new ProviderError(`Razorpay ${method} ${path} returned an unreadable body`, "unknown", res.status);
     return json as T;
   }
   async createOrder(p: { amount: Paise; receipt: string; notes?: Record<string, string> }): Promise<ProviderOrder> {
@@ -205,19 +231,28 @@ class RazorpayPayments implements PaymentProvider {
     const r = await this.call<{ items: Parameters<RazorpayPayments["mapPayment"]>[0][] }>("GET", `/orders/${encodeURIComponent(orderId)}/payments`);
     return r.items.map((i) => this.mapPayment(i));
   }
-  async refund(p: { paymentId: string; amount: Paise; idempotencyKey: string; notes?: Record<string, string> }): Promise<ProviderRefund> {
-    // `receipt` carries our idempotency key so a retried call can be matched to the same refund on reconciliation.
-    const r = await this.call<{ id: string; amount: number; status: string; payment_id: string }>("POST", `/payments/${encodeURIComponent(p.paymentId)}/refund`, {
-      amount: p.amount,
-      speed: "normal",
-      receipt: p.idempotencyKey.slice(0, 40),
-      notes: p.notes,
-    });
-    return { id: r.id, paymentId: r.payment_id, amount: r.amount, status: r.status === "processed" ? "processed" : r.status === "failed" ? "failed" : "pending" };
+  private mapRefund(r: { id: string; amount: number; status: string; payment_id: string; receipt?: string | null }): ProviderRefund {
+    return { id: r.id, paymentId: r.payment_id, amount: r.amount, status: r.status === "processed" ? "processed" : r.status === "failed" ? "failed" : "pending", receipt: r.receipt ?? null };
+  }
+  async refund(p: { paymentId: string; amount: Paise; receipt: string; notes?: Record<string, string> }): Promise<ProviderRefund> {
+    // Razorpay documents `receipt` as the idempotency identifier for refunds on a payment: a repeated receipt is
+    // rejected as a duplicate. We still never rely on that alone - an unknown outcome is located via listPaymentRefunds.
+    return this.mapRefund(
+      await this.call("POST", `/payments/${encodeURIComponent(p.paymentId)}/refund`, { amount: p.amount, speed: "normal", receipt: p.receipt.slice(0, 40), notes: p.notes }),
+    );
   }
   async fetchRefund(paymentId: string, refundId: string): Promise<ProviderRefund> {
-    const r = await this.call<{ id: string; amount: number; status: string; payment_id: string }>("GET", `/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`);
-    return { id: r.id, paymentId: r.payment_id, amount: r.amount, status: r.status === "processed" ? "processed" : r.status === "failed" ? "failed" : "pending" };
+    return this.mapRefund(await this.call("GET", `/payments/${encodeURIComponent(paymentId)}/refunds/${encodeURIComponent(refundId)}`));
+  }
+  async listPaymentRefunds(paymentId: string): Promise<ProviderRefund[]> {
+    const out: ProviderRefund[] = [];
+    const PAGE = 100;
+    for (let page = 0; page < 5; page++) {
+      const r = await this.call<{ items: Parameters<RazorpayPayments["mapRefund"]>[0][] }>("GET", `/payments/${encodeURIComponent(paymentId)}/refunds?count=${PAGE}&skip=${page * PAGE}`);
+      out.push(...r.items.map((i) => this.mapRefund(i)));
+      if (r.items.length < PAGE) return out;
+    }
+    throw new ProviderError("Refund list exceeded the bounded page limit; it may be incomplete.", "unknown");
   }
   publicKeyId(): string | null {
     return env().RAZORPAY_KEY_ID ?? null;

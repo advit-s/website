@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { Download } from "lucide-react";
 import { requireAdminPage } from "@/server/auth/session";
 import { getAdminOrder } from "@/server/services/admin-orders";
+import { getRefundRecovery } from "@/server/services/refunds";
+import { listPaymentExceptions, reviewBlockers } from "@/server/services/payment-exceptions";
+import { refundable as refundableAmount } from "@/domain/refunds";
 import { Card, PageHeader } from "@/components/admin/admin-shell";
 import { OrderActionsPanel } from "@/components/admin/order-actions-panel";
 import { OrderProgress } from "@/components/orders/order-progress";
@@ -21,10 +24,10 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
   await requireAdminPage(`/admin/orders/${id}`);
   const d = await getAdminOrder(id);
   if (!d) notFound();
+  const [recovery, exceptions, reviewBlocked] = await Promise.all([getRefundRecovery(id), listPaymentExceptions(id), reviewBlockers(id)]);
   const { order: o } = d;
   const dt = new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kolkata" });
-  const open = o.payment.refunds.filter((r) => r.state === "requested" || r.state === "processing").reduce((s, r) => s + r.amount, 0);
-  const refundable = Math.max(0, o.pricing.total - o.payment.refundedTotal - open);
+  const refundable = refundableAmount(o.pricing.total, o.payment.refunds);
   return (
     <>
       <nav aria-label="Breadcrumb" className="mb-2 text-sm text-ink-muted">
@@ -64,6 +67,10 @@ export default async function AdminOrderPage({ params }: { params: Promise<{ id:
               refunds={o.payment.refunds}
               custom={o.custom}
               simulated={isSimulated()}
+              dispatches={recovery.dispatches.map((x) => ({ refundId: x.refundId, attempt: x.attempt, outcome: x.outcome, receipt: x.receipt, providerRefundId: x.providerRefundId, lastCheck: x.lastCheck ?? null }))}
+              evidence={recovery.evidence.map((x) => ({ providerRefundId: x.providerRefundId, state: x.state, status: x.status, note: x.note }))}
+              exceptions={exceptions.map((x) => ({ id: x.id, kind: x.kind, paymentId: x.paymentId, amount: x.amount, status: x.status, guidance: x.guidance, courierReview: x.courierReview, codCollected: x.codCollected, createdAt: x.createdAt, refundId: x.refundId ?? null }))}
+              reviewBlocked={reviewBlocked}
             />
           </Card>
 

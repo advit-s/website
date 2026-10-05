@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
-import { Alert } from "@/components/ui/feedback";
+import { Alert, Badge } from "@/components/ui/feedback";
 import { Field, Input, Select, Textarea, Checkbox } from "@/components/ui/field";
 import { allowedTransitions } from "@/domain/order-state";
 import type { FulfilmentStatus, PaymentMethod, PaymentStatus, RefundRecord, ReturnStatus } from "@/domain/types";
@@ -23,9 +23,16 @@ interface Props {
   refunds: RefundRecord[];
   custom: { quotedTotal: number | null; advancePaid: number; leadTimeDays: number | null; productionState: string | null } | null;
   simulated: boolean;
+  /** Latest dispatch records per refund attempt (what was sent, receipt, last provider check). */
+  dispatches: { refundId: string; attempt: number; outcome: string; receipt: string; providerRefundId: string | null; lastCheck?: { at: string; result: string; detail: string } | null }[];
+  /** Provider refund events that could not be matched to a refund yet (kept as evidence). */
+  evidence: { providerRefundId: string; state: string; status: string; note: string | null }[];
+  exceptions: { id: string; kind: string; paymentId: string; amount: number; status: string; guidance: string; courierReview: boolean; codCollected: boolean; createdAt: string; refundId?: string | null }[];
+  /** Why generic "Mark reviewed" is currently refused (unresolved money problem), or null. */
+  reviewBlocked: string | null;
 }
 
-type Modal = null | "ship" | "cancel" | "refund" | "cod_ref" | "note" | "quote" | "return_received";
+type Modal = null | "ship" | "cancel" | "refund" | "cod_ref" | "note" | "quote" | "return_received" | "attest" | "ex_reconcile";
 
 export function OrderActionsPanel(p: Props) {
   const router = useRouter();
@@ -45,7 +52,7 @@ export function OrderActionsPanel(p: Props) {
     const d = await r.json().catch(() => ({}));
     setBusy(null);
     if (!r.ok) {
-      setError(d?.error?.fields ? Object.values(d.error.fields as Record<string, string>).join("; ") : (d?.error?.message ?? "Action failed."));
+      setError(d?.error?.code === "REAUTH_REQUIRED" ? "For safety, sign out and sign back in, then retry." : d?.error?.fields ? Object.values(d.error.fields as Record<string, string>).join("; ") : (d?.error?.message ?? "Action failed."));
       return false;
     }
     setOk(`${label}: done.`);
@@ -68,6 +75,9 @@ export function OrderActionsPanel(p: Props) {
 
   const canConfirm = next.includes("confirmed");
   const unpaidPrepaid = p.paymentMethod === "razorpay" && p.paymentStatus !== "paid";
+  const openExceptions = p.exceptions.filter((e) => e.status === "needs_review" || e.status === "refund_requested");
+  const blockedByException = openExceptions.length > 0;
+  const dispatchOf = (r: RefundRecord) => p.dispatches.find((d) => d.refundId === r.id && d.attempt === (r.attempt ?? 1));
 
   return (
     <div className="space-y-4">
@@ -76,14 +86,45 @@ export function OrderActionsPanel(p: Props) {
       {p.needsReview && (
         <Alert tone="warning" title="Flagged for review">
           A payment or shipment exception needs a human decision.
-          <div className="mt-2"><Button size="sm" variant="secondary" onClick={() => act({ type: "clear_review" }, "Clear flag")} loading={busy === "Clear flag"}>Mark reviewed</Button></div>
+          {p.reviewBlocked ? (
+            <p className="mt-2 text-sm">Cannot be cleared yet: {p.reviewBlocked}</p>
+          ) : (
+            <div className="mt-2"><Button size="sm" variant="secondary" onClick={() => act({ type: "clear_review" }, "Clear flag")} loading={busy === "Clear flag"}>Mark reviewed</Button></div>
+          )}
         </Alert>
       )}
 
+      {p.exceptions.length > 0 && (
+        <section aria-labelledby="pe-title" className="rounded-md border border-warning/40 p-3">
+          <h3 id="pe-title" className="font-sans text-sm font-semibold">Payment exceptions</h3>
+          <p className="mt-1 text-xs text-ink-muted">Online payments the provider captured outside this order&apos;s normal flow. Nothing here changes fulfilment or refunds by itself.</p>
+          <ul className="mt-2 space-y-3">
+            {p.exceptions.map((e) => (
+              <li key={e.id} className="rounded-md bg-ivory p-3 text-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-medium">{formatINR(e.amount)} &middot; {e.kind === "duplicate_capture" ? "second online payment" : "online payment after COD switch"}</p>
+                  <Badge tone={e.status === "needs_review" ? "warning" : e.status === "refund_requested" ? "info" : "success"}>{e.status === "needs_review" ? "Needs decision" : e.status === "refund_requested" ? "Refund requested" : e.status === "refunded" ? "Refunded" : "Handled outside the system"}</Badge>
+                </div>
+                <p className="mt-1 break-all font-mono text-xs text-ink-muted">{e.paymentId}</p>
+                <p className="mt-1">{e.guidance}</p>
+                {e.courierReview && <p className="mt-1 text-xs font-medium text-warning">This order was already shipped or delivered: review the courier&apos;s cash-on-delivery collection.</p>}
+                {e.codCollected && <p className="mt-1 text-xs font-medium text-warning">Cash on delivery has been collected: the customer has paid twice.</p>}
+                {e.status === "needs_review" && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => act({ type: "exception_refund", exceptionId: e.id }, "Request refund of extra payment")} loading={busy === "Request refund of extra payment"}>Verify and request refund</Button>
+                    <Button size="sm" variant="secondary" onClick={() => (setF({ exceptionId: e.id }), setError(null), setModal("ex_reconcile"))}>Already refunded elsewhere...</Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="flex flex-wrap gap-2">
-        {canConfirm && <Button onClick={() => act({ type: "confirm" }, "Confirm order")} loading={busy === "Confirm order"} disabled={unpaidPrepaid || p.needsReview} title={unpaidPrepaid ? "Prepaid orders can be confirmed once paid" : undefined}>Confirm order</Button>}
-        {next.includes("processing") && <Button onClick={() => act({ type: "start_processing" }, "Start processing")} loading={busy === "Start processing"}>Start processing</Button>}
-        {next.includes("shipped") && <Button onClick={() => (setError(null), setModal("ship"))}>Ship order</Button>}
+        {canConfirm && <Button onClick={() => act({ type: "confirm" }, "Confirm order")} loading={busy === "Confirm order"} disabled={unpaidPrepaid || p.needsReview || blockedByException} title={unpaidPrepaid ? "Prepaid orders can be confirmed once paid" : blockedByException ? "Resolve the payment exception first" : undefined}>Confirm order</Button>}
+        {next.includes("processing") && <Button onClick={() => act({ type: "start_processing" }, "Start processing")} loading={busy === "Start processing"} disabled={blockedByException} title={blockedByException ? "Resolve the payment exception first" : undefined}>Start processing</Button>}
+        {next.includes("shipped") && <Button onClick={() => (setError(null), setModal("ship"))} disabled={blockedByException} title={blockedByException ? "Resolve the payment exception first" : undefined}>Ship order</Button>}
         {next.includes("out_for_delivery") && <Button variant="secondary" onClick={() => act({ type: "out_for_delivery" }, "Out for delivery")} loading={busy === "Out for delivery"}>Mark out for delivery</Button>}
         {next.includes("delivered") && <Button onClick={() => act({ type: "deliver", codCollected: p.paymentMethod === "cod" }, "Mark delivered")} loading={busy === "Mark delivered"}>Mark delivered{p.paymentMethod === "cod" && p.paymentStatus === "pending" ? " + cash collected" : ""}</Button>}
         {p.paymentMethod === "cod" && p.paymentStatus === "pending" && p.status === "delivered" && <Button variant="secondary" onClick={() => act({ type: "collect_cod" }, "Record cash collected")} loading={busy === "Record cash collected"}>Record cash collected</Button>}
@@ -97,22 +138,68 @@ export function OrderActionsPanel(p: Props) {
         <div>
           <h3 className="mb-2 font-sans text-sm font-semibold">Refunds</h3>
           <ul className="space-y-2">
-            {p.refunds.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-line p-3 text-sm">
-                <div>
-                  <p className="font-medium">{formatINR(r.amount)} &middot; {r.state}</p>
-                  <p className="text-xs text-ink-muted">{r.reason}{r.reference ? ` - ref ${r.reference}` : ""}</p>
-                </div>
-                {(r.state === "requested" || r.state === "failed") && p.paymentMethod === "razorpay" && (
-                  <Button size="sm" onClick={() => runRefund(r.id)} loading={busy === `refund-${r.id}`}>{r.state === "failed" ? "Retry refund" : "Send refund to provider"}{p.simulated ? " (simulated)" : ""}</Button>
-                )}
-                {(r.state === "requested" || r.state === "failed") && p.paymentMethod === "cod" && (
-                  <Button size="sm" variant="secondary" onClick={() => (setF({ refundId: r.id }), setModal("cod_ref"))}>Record bank/UPI refund</Button>
-                )}
-              </li>
+            {p.refunds.map((r) => {
+              const d = dispatchOf(r);
+              const online = p.paymentMethod === "razorpay" || !!r.exceptionId;
+              const unlocked = r.state === "requested" || (r.state === "failed" && r.retrySafe);
+              return (
+                <li key={r.id} className="rounded-md border border-line p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium">
+                        {formatINR(r.amount)} &middot; {r.state === "processing" && r.uncertain ? "outcome unknown - locked" : r.state}
+                        {r.exceptionId ? " · extra online payment" : ""}
+                      </p>
+                      <p className="text-xs text-ink-muted">{r.reason}{r.reference ? ` - ref ${r.reference}` : ""}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {unlocked && online && (
+                        <Button size="sm" onClick={() => runRefund(r.id)} loading={busy === `refund-${r.id}`}>{r.state === "failed" ? "Send again (new attempt)" : "Send refund to provider"}{p.simulated ? " (simulated)" : ""}</Button>
+                      )}
+                      {r.state === "processing" && online && (
+                        <Button size="sm" variant="secondary" onClick={() => act({ type: "refund_reconcile", refundId: r.id }, "Reconcile refund")} loading={busy === "Reconcile refund"}>Reconcile with provider</Button>
+                      )}
+                      {r.state === "processing" && r.uncertain && !r.providerRefundId && d?.lastCheck?.result === "not_found" && (
+                        <Button size="sm" variant="ghost" onClick={() => (setF({ refundId: r.id }), setError(null), setModal("attest"))}>Record provider check...</Button>
+                      )}
+                      {(r.state === "requested" || r.state === "failed") && p.paymentMethod === "cod" && !r.exceptionId && (
+                        <Button size="sm" variant="secondary" onClick={() => (setF({ refundId: r.id }), setModal("cod_ref"))}>Record bank/UPI refund</Button>
+                      )}
+                    </div>
+                  </div>
+                  {r.state === "processing" && r.uncertain && (
+                    <p className="mt-2 text-xs text-warning">
+                      We could not confirm whether the provider moved this money, so it stays locked and cannot be sent again. Use <strong>Reconcile with provider</strong>; it only applies what the provider proves.
+                    </p>
+                  )}
+                  {r.state === "failed" && !r.retrySafe && online && (
+                    <p className="mt-2 text-xs text-warning">This refund failed but it is not proven that the provider created nothing, so it cannot be sent again. Check the provider dashboard and contact the developer.</p>
+                  )}
+                  {d && (
+                    <p className="mt-2 text-xs text-ink-muted">
+                      Attempt {d.attempt} &middot; receipt <span className="font-mono">{d.receipt}</span> &middot; {d.outcome.replace(/_/g, " ")}
+                      {d.providerRefundId ? <> &middot; <span className="font-mono">{d.providerRefundId}</span></> : null}
+                      {d.lastCheck ? <><br />Last provider check: {d.lastCheck.result.replace(/_/g, " ")} - {d.lastCheck.detail}</> : null}
+                    </p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          <details className="mt-2 text-xs text-ink-muted">
+            <summary className="cursor-pointer">When is it safe to send a refund again?</summary>
+            <p className="mt-1">Only when it has never been sent, or the provider confirmed it failed or rejected the request, or you recorded a documented provider check after the system search found nothing. A timeout, a dropped connection or elapsed time never unlocks a refund. Every new attempt uses a new receipt.</p>
+          </details>
+        </div>
+      )}
+      {p.evidence.filter((e) => e.state !== "applied").length > 0 && (
+        <Alert tone="info" title="Provider refund events awaiting correlation">
+          <ul className="mt-1 space-y-1 text-xs">
+            {p.evidence.filter((e) => e.state !== "applied").map((e) => (
+              <li key={e.providerRefundId}><span className="font-mono">{e.providerRefundId}</span> - {e.status} - {e.state.replace(/_/g, " ")}{e.note ? `: ${e.note}` : ""}</li>
             ))}
           </ul>
-        </div>
+        </Alert>
       )}
 
       {p.returnStatus !== "none" && (
@@ -149,7 +236,17 @@ export function OrderActionsPanel(p: Props) {
               <Field label="Tracking link (optional, https)">{(x) => <Input id={x.id} type="url" value={String(f.url ?? "")} onChange={(e) => set("url", e.target.value)} />}</Field>
             </>
           ) : (
-            <Alert tone="info">{p.simulated ? "Simulated mode: a clearly-marked fake AWB is generated. No courier is booked." : "The booking is made with Shiprocket now. If it fails, nothing changes and you will see the real error; you can then enter an AWB manually."}</Alert>
+            <div className="space-y-3">
+              <Alert tone="info">{p.simulated ? "Simulated mode: a clearly-marked fake AWB is generated. No courier is booked." : "The booking is made with Shiprocket now. Its progress is saved at each step: if the AWB step fails you can retry without creating a second order; if the outcome is unknown, booking is locked until you attach the existing Shiprocket order or enter an AWB manually."}</Alert>
+              <details className="rounded-md border border-line p-3 text-sm">
+                <summary className="cursor-pointer font-medium">A booking already exists in Shiprocket?</summary>
+                <p className="mt-2 text-xs text-ink-muted">Enter the Shiprocket order id. It is verified with Shiprocket and must carry this order&apos;s number; then press <strong>Mark shipped</strong> to continue from where it stopped.</p>
+                <div className="mt-2 flex gap-2">
+                  <Input aria-label="Shiprocket order id" value={String(f.attachId ?? "")} onChange={(e) => set("attachId", e.target.value)} placeholder="Shiprocket order id" />
+                  <Button type="button" size="sm" variant="secondary" onClick={() => act({ type: "booking_attach", shiprocketOrderId: String(f.attachId ?? "") }, "Attach booking")} loading={busy === "Attach booking"} disabled={String(f.attachId ?? "").trim().length < 3}>Attach</Button>
+                </div>
+              </details>
+            </div>
           )}
           {error && <Alert tone="error">{error}</Alert>}
           <div className="flex justify-end gap-2">
@@ -184,6 +281,24 @@ export function OrderActionsPanel(p: Props) {
           <Field label="Transfer / UPI reference" required>{(x) => <Input id={x.id} value={String(f.reference ?? "")} onChange={(e) => set("reference", e.target.value)} />}</Field>
           {error && <Alert tone="error">{error}</Alert>}
           <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)}>Close</Button><Button onClick={() => act({ type: "cod_refund_record", refundId: String(f.refundId), reference: String(f.reference ?? "") }, "Record refund")} loading={busy === "Record refund"}>Record</Button></div>
+        </div>
+      </Dialog>
+
+      <Dialog open={modal === "attest"} onClose={() => setModal(null)} title="Record a provider check" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-ink-muted">The system search found no refund for this attempt, which is not proof that none exists. Open the payment provider dashboard, look at this payment&apos;s refunds, and describe exactly what you checked. If you confirm no refund exists, the refund becomes safe to send again as a new attempt. If a refund appears later it is flagged for review, never merged silently.</p>
+          <Field label="What did you check, and what did you see?" required>{(x) => <Textarea id={x.id} value={String(f.note ?? "")} onChange={(e) => set("note", e.target.value)} maxLength={500} />}</Field>
+          {error && <Alert tone="error">{error}</Alert>}
+          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)}>Close</Button><Button onClick={() => act({ type: "refund_attest_absent", refundId: String(f.refundId), note: String(f.note ?? "") }, "Record provider check")} loading={busy === "Record provider check"} disabled={String(f.note ?? "").trim().length < 20}>No refund exists - allow a new attempt</Button></div>
+        </div>
+      </Dialog>
+
+      <Dialog open={modal === "ex_reconcile"} onClose={() => setModal(null)} title="Extra payment already refunded elsewhere" size="sm">
+        <div className="space-y-4">
+          <p className="text-sm text-ink-muted">Use this only if the extra online payment was already refunded (for example from the provider dashboard). The system checks the provider&apos;s own refund list and refuses if no completed refund covers the payment.</p>
+          <Field label="How and when was it handled?" required>{(x) => <Textarea id={x.id} value={String(f.note ?? "")} onChange={(e) => set("note", e.target.value)} maxLength={500} />}</Field>
+          {error && <Alert tone="error">{error}</Alert>}
+          <div className="flex justify-end gap-2"><Button variant="ghost" onClick={() => setModal(null)}>Close</Button><Button onClick={() => act({ type: "exception_reconcile", exceptionId: String(f.exceptionId), note: String(f.note ?? "") }, "Record as handled")} loading={busy === "Record as handled"} disabled={String(f.note ?? "").trim().length < 20}>Verify and record</Button></div>
         </div>
       </Dialog>
 

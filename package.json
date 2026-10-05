@@ -14,8 +14,10 @@
     "seed": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/seed.ts",
     "reset": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/reset.ts",
     "make-admin": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/make-admin.ts",
+    "migrate:ttl": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/migrate-ttl.ts",
     "jobs:expire": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/jobs.ts expire",
     "jobs:outbox": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/jobs.ts outbox",
+    "jobs:refunds": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/jobs.ts refunds",
     "jobs:purge": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/jobs.ts purge",
     "jobs:reconcile": "node --conditions=react-server --env-file-if-exists=.env.local --import tsx scripts/jobs.ts reconcile",
     "build": "next build",
@@ -63,5 +65,19 @@
     "tsx": "^4.23.15",
     "typescript": "5.9",
     "vitest": "^3.2.7"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.28"
+    },
+    "exceljs": {
+      "uuid": "^11.1.1"
+    },
+    "gaxios": {
+      "uuid": "^11.1.1"
+    },
+    "@firebase/firestore": {
+      "@grpc/grpc-js": "^1.14.5"
+    }
   }
 }

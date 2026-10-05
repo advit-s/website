@@ -6,9 +6,11 @@ import { addTimeline, getTimeline, orderFromDoc, orderRef } from "./order-core";
 import { applyStock, readVariants, type StockLine } from "./stock";
 import { enqueueNotification } from "./notifications";
 import { cancelOrder } from "./order-actions";
-import { payments } from "../providers/payments";
-import { shipping } from "../providers/shipping";
+import { attachBooking, bookWithRecovery, markManualOverride } from "./shipment-booking";
 import { audit, auditInTx } from "./audit";
+import { reconcileRefund, attestRefundNotCreated, refundPatch } from "./refunds";
+import { EXCEPTION_BLOCK, hasUnresolvedException, hasUnresolvedExceptionNow, reconcileExceptionManually, requestExceptionRefund, reviewBlockers } from "./payment-exceptions";
+import { refundable as refundableAmount } from "@/domain/refunds";
 import { invalidate } from "../cache";
 import { badRequest, conflict, notFound } from "../http";
 import { canTransition, matchesQueueTab, STATUS_LABEL, type QueueTab } from "@/domain/order-state";
@@ -95,6 +97,11 @@ export type OrderAction =
   | { type: "note"; text: string }
   | { type: "refund_request"; amount: number; reason: string }
   | { type: "cod_refund_record"; refundId: string; reference: string }
+  | { type: "exception_refund"; exceptionId: string }
+  | { type: "exception_reconcile"; exceptionId: string; note: string }
+  | { type: "booking_attach"; shiprocketOrderId: string }
+  | { type: "refund_reconcile"; refundId: string }
+  | { type: "refund_attest_absent"; refundId: string; note: string }
   | { type: "return_decision"; decision: "approve" | "reject"; note?: string }
   | { type: "return_received"; disposition: "restock" | "discard" }
   | { type: "return_close" }
@@ -131,6 +138,19 @@ export async function applyOrderAction(orderId: string, action: OrderAction, act
       return requestRefund(orderId, action.amount, action.reason, actor);
     case "cod_refund_record":
       return recordCodRefund(orderId, action.refundId, action.reference, actor);
+    case "exception_refund":
+      return requestExceptionRefund(orderId, action.exceptionId, actor);
+    case "exception_reconcile":
+      return reconcileExceptionManually(orderId, action.exceptionId, actor, action.note);
+    case "booking_attach":
+      return attachBooking(orderId, action.shiprocketOrderId, actor);
+    case "refund_reconcile": {
+      const rep = await reconcileRefund(orderId, action.refundId, actor);
+      if (rep.outcome === "not_pending") throw conflict("NOT_PENDING", rep.detail);
+      return orderFromDoc(await orderRef(orderId).get());
+    }
+    case "refund_attest_absent":
+      return attestRefundNotCreated(orderId, action.refundId, actor, action.note);
     case "return_decision":
       return returnDecision(orderId, action.decision, action.note, actor);
     case "return_received":
@@ -149,8 +169,15 @@ export async function applyOrderAction(orderId: string, action: OrderAction, act
           visible: true,
         };
       });
-    case "clear_review":
-      return simpleUpdate(orderId, actor, "order.clear_review", () => ({ patch: { needsReview: false }, label: "Review cleared", visible: false }));
+    case "clear_review": {
+      // A generic "clear" must never erase an unresolved money problem.
+      const blocked = await reviewBlockers(orderId);
+      if (blocked) throw conflict("REVIEW_BLOCKED", blocked);
+      return simpleUpdate(orderId, actor, "order.clear_review", (o) => {
+        if (o.payment.refunds.some((r) => r.state === "processing")) throw conflict("REVIEW_BLOCKED", "A refund is still processing or awaiting reconciliation.");
+        return { patch: { needsReview: false }, label: "Review cleared", visible: false };
+      });
+    }
   }
 }
 
@@ -170,6 +197,7 @@ async function transition(orderId: string, to: FulfilmentStatus, actor: string):
     const o = orderFromDoc(await tx.get(orderRef(orderId)));
     if (!canTransition(o.status, to)) throw conflict("BAD_TRANSITION", `An order that is ${STATUS_LABEL[o.status].toLowerCase()} cannot move to ${STATUS_LABEL[to].toLowerCase()}.`);
     if (to === "confirmed" && o.paymentMethod === "razorpay" && o.paymentStatus !== "paid") throw conflict("UNPAID", "This prepaid order has not been paid yet, so it cannot be confirmed.");
+    if ((to === "confirmed" || to === "processing") && (await hasUnresolvedException(tx, orderId))) throw conflict("PAYMENT_EXCEPTION", EXCEPTION_BLOCK);
     if (to === "confirmed" && o.needsReview) throw conflict("NEEDS_REVIEW", "This order is flagged for review. Resolve the flag first.");
     tx.update(orderRef(orderId), { status: to, updatedAt: nowIso(), version: o.version + 1 });
     addTimeline(tx, orderId, { type: `status.${to}`, label: STATUS_LABEL[to], detail: null, customerVisible: true, actor });
@@ -184,10 +212,13 @@ async function ship(orderId: string, a: Extract<OrderAction, { type: "ship" }>, 
   const order = orderFromDoc(await orderRef(orderId).get());
   if (!order.id) throw notFound("Order not found.");
   if (!canTransition(order.status, "shipped")) throw conflict("BAD_TRANSITION", "Only an order that is Processing can be shipped.");
+  // Checked before any courier booking so a blocked order never creates an external shipment.
+  if (await hasUnresolvedExceptionNow(orderId)) throw conflict("PAYMENT_EXCEPTION", EXCEPTION_BLOCK);
   let info: { provider: "shiprocket" | "manual"; shiprocketOrderId: string | null; awb: string; courier: string; url: string | null; simulated: boolean };
   if (a.mode === "shiprocket") {
-    // The provider is called OUTSIDE any transaction. If it fails, nothing changes and the real error is shown.
-    const b = await shipping().book(order);
+    // The provider is called OUTSIDE any transaction, with its progress persisted step by step (shipment-booking.ts), so a failure
+    // can be resumed or attached but never re-booked blindly. If it fails, the order itself is unchanged and the real error is shown.
+    const b = await bookWithRecovery(order, actor);
     info = { provider: "shiprocket", shiprocketOrderId: b.shiprocketOrderId, awb: b.awbNumber, courier: b.courierName, url: b.trackingUrl, simulated: b.simulated };
   } else {
     if (!a.courierName?.trim() || !a.awbNumber?.trim()) throw badRequest("Enter the courier name and the AWB / tracking number for a manual booking.");
@@ -197,6 +228,7 @@ async function ship(orderId: string, a: Extract<OrderAction, { type: "ship" }>, 
   await db().runTransaction(async (tx) => {
     const o = orderFromDoc(await tx.get(orderRef(orderId)));
     if (!canTransition(o.status, "shipped")) throw conflict("BAD_TRANSITION", "The order changed while booking. Reload and check its state.");
+    if (await hasUnresolvedException(tx, orderId)) throw conflict("PAYMENT_EXCEPTION", EXCEPTION_BLOCK);
     const now = nowIso();
     tx.update(orderRef(orderId), {
       status: "shipped",
@@ -212,6 +244,7 @@ async function ship(orderId: string, a: Extract<OrderAction, { type: "ship" }>, 
     addTimeline(tx, orderId, { type: "status.shipped", label: "Shipped", detail: `${info.courier} - AWB ${info.awb}${info.simulated ? " (simulated booking)" : ""}`, customerVisible: true, actor });
     auditInTx(tx, actor, "order.ship", orderId, { provider: info.provider, awb: info.awb, simulated: info.simulated });
   });
+  if (info.provider === "manual") await markManualOverride(orderId);
   await notifyStatus(order, "shipped", `${info.courier}, AWB ${info.awb}`);
   return orderFromDoc(await orderRef(orderId).get());
 }
@@ -247,8 +280,7 @@ async function requestRefund(orderId: string, amount: number, reason: string, ac
   if (reason.trim().length < 3) throw badRequest("Give a reason for the refund.");
   return simpleUpdate(orderId, actor, "refund.request", (o) => {
     if (!["paid", "partially_refunded"].includes(o.paymentStatus)) throw conflict("NOT_PAID", "Only a paid order can be refunded.");
-    const open = o.payment.refunds.filter((r) => r.state === "requested" || r.state === "processing").reduce((s, r) => s + r.amount, 0);
-    const refundable = o.pricing.total - o.payment.refundedTotal - open;
+    const refundable = refundableAmount(o.pricing.total, o.payment.refunds);
     if (amount > refundable) throw conflict("OVER_REFUND", `At most ${(refundable / 100).toFixed(2)} INR can still be refunded on this order.`);
     const id = newId("rf_");
     const rec: RefundRecord = { id, amount, state: "requested", reason: reason.slice(0, 200), providerRefundId: null, reference: null, requestedBy: actor, requestedAt: nowIso(), updatedAt: nowIso(), idempotencyKey: `refund_${orderId}_${id}` };
@@ -258,67 +290,18 @@ async function requestRefund(orderId: string, amount: number, reason: string, ac
   });
 }
 
-/**
- * Execute a requested refund through the payment provider.
- *  1. mark the refund `processing` (guards double-click / concurrent admins),
- *  2. call the provider OUTSIDE the transaction with the refund's own idempotency key,
- *  3. record `completed`, `processing` (provider still settling) or `failed` and update totals.
- * COD / cash refunds never go to a provider; use `cod_refund_record`.
- */
-export async function executeRefund(orderId: string, refundId: string, actor: string): Promise<Order> {
-  const pre = await db().runTransaction(async (tx) => {
-    const o = orderFromDoc(await tx.get(orderRef(orderId)));
-    const r = o.payment.refunds.find((x) => x.id === refundId);
-    if (!r) throw notFound("Refund not found.");
-    if (o.paymentMethod !== "razorpay") throw badRequest("Cash-on-delivery refunds are recorded manually (bank transfer / UPI reference), not sent through a provider.");
-    if (!o.payment.razorpayPaymentId) throw conflict("NO_PAYMENT", "There is no captured payment to refund.");
-    if (r.state === "completed") throw conflict("ALREADY_DONE", "This refund is already completed.");
-    if (r.state === "processing") throw conflict("IN_PROGRESS", "This refund is in progress or awaiting reconciliation. Do not send it again.");
-    const refunds = o.payment.refunds.map((x) => (x.id === refundId ? { ...x, state: "processing" as const, updatedAt: nowIso() } : x));
-    tx.update(orderRef(orderId), { "payment.refunds": refunds, updatedAt: nowIso(), version: o.version + 1 });
-    auditInTx(tx, actor, "refund.execute.start", orderId, { refundId, amount: r.amount });
-    return { paymentId: o.payment.razorpayPaymentId, refund: r, order: o };
-  });
-
-  let result: { id: string; status: "pending" | "processed" | "failed" } | null = null;
-  let errorMsg: string | null = null;
-  try {
-    result = await payments().refund({ paymentId: pre.paymentId, amount: pre.refund.amount, idempotencyKey: pre.refund.idempotencyKey, notes: { orderNumber: pre.order.orderNumber } });
-  } catch (e) {
-    errorMsg = e instanceof Error ? e.message.slice(0, 200) : "Provider error";
-  }
-
-  await db().runTransaction(async (tx) => {
-    const o = orderFromDoc(await tx.get(orderRef(orderId)));
-    // A timeout/transport failure is ambiguous: the provider may already have
-    // moved money. Keep the claim locked until its real outcome is reconciled.
-    const state = errorMsg ? ("processing" as const) : result?.status === "failed" ? ("failed" as const) : result?.status === "processed" ? ("completed" as const) : ("processing" as const);
-    const refunds = o.payment.refunds.map((x) => (x.id === refundId && x.state !== "completed" ? { ...x, state, providerRefundId: result?.id ?? x.providerRefundId, updatedAt: nowIso(), reason: errorMsg ? `${x.reason} [provider outcome unknown: ${errorMsg}]`.slice(0, 300) : x.reason } : x));
-    const refundedTotal = refunds.filter((x) => x.state === "completed").reduce((s, x) => s + x.amount, 0);
-    const paymentStatus = refundedTotal >= o.pricing.total ? "refunded" : refundedTotal > 0 ? "partially_refunded" : o.paymentStatus;
-    const patch: Record<string, unknown> = { "payment.refunds": refunds, "payment.refundedTotal": refundedTotal, paymentStatus, updatedAt: nowIso(), version: o.version + 1 };
-    if (errorMsg) patch.needsReview = true;
-    if (state === "completed" && o.returnStatus === "refund_pending") patch.returnStatus = "closed";
-    tx.update(orderRef(orderId), patch);
-    addTimeline(tx, orderId, { type: `refund.${state}`, label: state === "completed" ? "Refund completed" : state === "failed" ? "Refund attempt failed" : "Refund is being processed", detail: errorMsg, customerVisible: state !== "failed", actor });
-    auditInTx(tx, actor, `refund.execute.${state}`, orderId, { refundId, providerRefundId: result?.id ?? null });
-  });
-  const after = orderFromDoc(await orderRef(orderId).get());
-  if (!errorMsg) await enqueueNotification({ kind: "order.refund", to: { email: after.contact.email, phone: after.contact.phone }, data: { orderNumber: after.orderNumber, state: result?.status === "processed" ? "completed" : "processing" }, dedupeKey: `refund_${refundId}` });
-  if (errorMsg) throw conflict("REFUND_UNCERTAIN", "The refund outcome is unknown. It remains locked for reconciliation; check the provider before taking further action.");
-  return after;
-}
+// executeRefund / reconcileRefund / attestRefundNotCreated live in refunds.ts (durable dispatch records and recovery).
+export { executeRefund } from "./refunds";
 
 async function recordCodRefund(orderId: string, refundId: string, reference: string, actor: string): Promise<Order> {
   if (reference.trim().length < 4) throw badRequest("Enter the bank transfer / UPI reference.");
   return simpleUpdate(orderId, actor, "refund.cod_record", (o) => {
     const r = o.payment.refunds.find((x) => x.id === refundId);
     if (!r) throw notFound("Refund not found.");
-    if (o.paymentMethod !== "cod") throw badRequest("Online payments are refunded through the provider.");
+    if (o.paymentMethod !== "cod" || r.exceptionId) throw badRequest("Online payments are refunded through the provider.");
     if (r.state === "completed") throw conflict("ALREADY_DONE", "Already recorded.");
     const refunds = o.payment.refunds.map((x) => (x.id === refundId ? { ...x, state: "completed" as const, reference: reference.trim().slice(0, 80), updatedAt: nowIso() } : x));
-    const refundedTotal = refunds.filter((x) => x.state === "completed").reduce((s, x) => s + x.amount, 0);
-    const patch: Record<string, unknown> = { "payment.refunds": refunds, "payment.refundedTotal": refundedTotal, paymentStatus: refundedTotal >= o.pricing.total ? "refunded" : "partially_refunded" };
+    const patch: Record<string, unknown> = { ...refundPatch(o, refunds) };
     if (o.returnStatus === "refund_pending") patch.returnStatus = "closed";
     // The reference is financial data: stored on the order for admins only, never in the customer-visible timeline.
     return { patch, label: "Refund completed", visible: true };

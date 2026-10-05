@@ -228,6 +228,37 @@ export function SettingsForm({ initialPublic, initialPrivate, updatedAt, product
         </div>
       </Card></div>
 
+      <div id="shipping-parcel" className="scroll-mt-20"><Card title="Courier parcel (Shiprocket booking)">
+        <p className="mb-3 text-sm text-ink-muted">Shiprocket needs a parcel size and weight for every booking. These are <strong>your</strong> packing assumptions - nothing is guessed. Until a size is entered, booking through Shiprocket is refused (manual AWB entry still works). Leave all three blank if you book manually.</p>
+        <div className="grid gap-4 md:grid-cols-4">
+          {(["lengthCm", "breadthCm", "heightCm"] as const).map((k) => (
+            <Field key={k} label={`${k === "lengthCm" ? "Length" : k === "breadthCm" ? "Breadth" : "Height"} (cm)`} error={e(`private.shipping.parcel.${k}`)}>
+              {(f) => (
+                <Input
+                  id={f.id}
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={priv.shipping.parcel?.[k] ?? ""}
+                  onChange={(x) => {
+                    const v = x.target.value === "" ? null : Number(x.target.value);
+                    setPriv((p) => {
+                      const cur = p.shipping.parcel ?? { lengthCm: 0, breadthCm: 0, heightCm: 0 };
+                      const next = { ...cur, [k]: v ?? 0 };
+                      const allBlank = next.lengthCm === 0 && next.breadthCm === 0 && next.heightCm === 0;
+                      return { ...p, shipping: { ...p.shipping, parcel: allBlank ? null : next } };
+                    });
+                  }}
+                />
+              )}
+            </Field>
+          ))}
+          <Field label="Packaging weight (grams)" hint="Added to the items' weight" error={e("private.shipping.packagingWeightGrams")}>
+            {(f) => <Input id={f.id} type="number" min={0} max={5000} value={priv.shipping.packagingWeightGrams} onChange={(x) => setPriv((p) => ({ ...p, shipping: { ...p.shipping, packagingWeightGrams: Math.max(0, Math.round(Number(x.target.value) || 0)) } }))} />}
+          </Field>
+        </div>
+      </Card></div>
+
       <div id="social" className="scroll-mt-20"><Card title="Social links">
         <div className="grid gap-4 md:grid-cols-2">
           {(["instagram", "facebook", "youtube", "pinterest"] as const).map((k) => (

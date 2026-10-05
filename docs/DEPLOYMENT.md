@@ -28,6 +28,15 @@ npx firebase-tools@latest deploy --only firestore:rules,firestore:indexes,storag
 `firestore.rules` / `storage.rules` deny all client writes (docs/DECISIONS.md D-07..D-11) - they are tested by `npm run test:rules`.
 `firestore.indexes.json` holds every composite index the queries need (the emulator does not enforce indexes, so run `deploy --only firestore:indexes` and wait for them to build **before** traffic;
 a missing index shows as a `FAILED_PRECONDITION` error with a console link). It also declares TTL policies for `rateLimits.expiresAt` and `idempotencyKeys.expiresAt`.
+`rateLimits.expiresAt` / `idempotencyKeys.expiresAt` are now written as Firestore Timestamps (required by TTL). Documents written by earlier builds hold ISO strings and will never be deleted by the policy; convert them with the bounded, resumable, dry-run-first migration BEFORE enabling the policy (it is not needed on a fresh project):
+```powershell
+npm run migrate:ttl                       # dry run on the local emulator
+# against a real project - owner authorisation required, back up first (scheduled backup or export):
+$env:CONFIRM_TTL_MIGRATION="<project-id>"
+npm run migrate:ttl -- --project-id=<project-id> --allow-cloud            # dry run
+npm run migrate:ttl -- --project-id=<project-id> --allow-cloud --commit   # repeat with --collection=... --after=<cursor> until no cursor is printed
+```
+TTL deletion is delayed cleanup (typically within a day or more); it is not access control and not any record's business expiry.
 Also enable a TTL policy for `webhookReceipts` only if you want them to expire (they are permanent by default - keep at least 90 days).
 
 ## 3. Secrets (never typed into git or the console UI of the repo)
@@ -66,7 +75,8 @@ The script preserves other claims and revokes existing sessions; the owner signs
 - **Razorpay**: Dashboard -> Webhooks -> URL `https://<domain>/api/webhooks/razorpay`, secret = `razorpay-webhook-secret`, events: `payment.captured`, `payment.failed`, `order.paid`, `refund.processed`, `refund.failed`.
   Start in **Test mode** with test keys; run through docs/TEST_REPORT.md section "Needs real services" before switching to live keys.
 - **Shiprocket**: Settings -> API -> Webhooks -> URL `https://<domain>/api/webhooks/courier` (a neutral alias of `/api/webhooks/shiprocket`, because Shiprocket advises that webhook URLs must not contain "shiprocket"/"sr"/"kr"),
-  security token = `shiprocket-webhook-token` (sent as the `x-api-key` header). The adapter's booking calls (`src/server/providers/shipping.ts`) have **not** been run against a live account.
+  security token = `shiprocket-webhook-token` (sent as the `x-api-key` header). The adapter's booking calls (`src/server/providers/shipping.ts`) have **not** been run against a live account. Before relying on them, in a Shiprocket sandbox/staging account verify: order creation + AWB assignment, the behaviour of a repeated create/assign for the same order, `GET /orders/show/{id}` (used to attach an existing booking; its response shape was taken from public documentation), and serviceability/pincode checks. Set the standard parcel size and packaging weight in Admin > Settings > Courier parcel first; live booking refuses without them.
+- **Messaging**: no vendor is implemented. Live mode marks customer messages `unavailable` (visible in Admin > Settings and the integration status) until an adapter for the owner's chosen vendor is added (`src/server/providers/messaging.ts`, contract tests in `tests/integration/messaging.test.ts`) and `MESSAGING_PROVIDER` is set.
 
 ## 7. Scheduled jobs (Cloud Scheduler -> HTTPS, `Authorization: Bearer <job-secret>`)
 | Job | Schedule | URL | Why |
@@ -74,6 +84,7 @@ The script preserves other claims and revokes existing sessions; the owner signs
 | expire | every 5 min | `POST https://<domain>/api/jobs/expire` | release stock held by unpaid orders (the hold is also re-checked on every payment) |
 | outbox | every 2 min | `POST .../api/jobs/outbox` | deliver queued notifications |
 | reconcile | every 15 min | `POST .../api/jobs/reconcile` | recover lost payment webhooks/callbacks |
+| refunds | every 5 min | `POST .../api/jobs/refunds` | re-check refunds stuck `processing` against the provider; applies only verified outcomes (docs/DECISIONS.md D-32) |
 | purge | daily | `POST .../api/jobs/purge` | assistant-conversation retention |
 Use a scheduler service account/secret header; jobs are idempotent and safe to overlap. `npm run jobs:*` runs the same code locally.
 

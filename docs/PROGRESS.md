@@ -13,8 +13,11 @@ Last updated: 2026-10-05. Nothing has been deployed; no paid infrastructure exis
 | M6 Assistants (customer + admin, simulated responders), content/legal pages, contact/custom-enquiry | Done |
 | M7 Hardening: rules tests, integration tests, e2e (a11y, responsive, security headers), docs | Done locally; see TEST_REPORT.md |
 
+## M8 Recovery and staging readiness (2026-10-05)
+Done locally (see READINESS_REVIEW.md "Update" and DECISIONS D-32..D-37): refund dispatch records + verified recovery + evidence replay + `refunds` job; payment exceptions with fulfilment guards and audited resolution; truthful messaging states with a vendor interface; TTL timestamps + safe migration; payment-attempt and Shiprocket booking race handling with owner-supplied parcel size; production dependency audit 0 via scoped overrides. Plus: licensed Unsplash sample photography on the storefront (docs/ASSETS.md).
+
 ## Test results
-See docs/TEST_REPORT.md for exact commands and counts.
+Latest run (2026-10-05): 56 unit, 121 integration, 16 rules, 76 browser tests passed; clean build; `npm audit --omit=dev` 0. Details and what is NOT verified: docs/TEST_REPORT.md.
 
 ## Blockers (owner input needed - docs/OWNER_SETUP.md)
 Legal identity/GSTIN/grievance officer; real photos and logo; Razorpay, Shiprocket, Anthropic credentials; messaging vendor choice; WhatsApp number; Firebase project (Blaze) and region confirmation; professional review of legal drafts.
@@ -23,6 +26,6 @@ Legal identity/GSTIN/grievance officer; real photos and logo; Razorpay, Shiprock
 `npm install`, then `npm run dev:local` (emulators + seed on first run + Next dev) -> http://localhost:3000. Admin: admin@rajraani.test / Demo#Passw0rd (emulator only).
 
 ## Exact next action
-Developer: complete payment/refund recovery, payment-exception fulfilment guards, truthful messaging states, TTL date fields and provider retry checks using docs/NEXT_STEP_CLAUDE_PROMPT.md. Current local tests passing is not production readiness; review docs/READINESS_REVIEW.md before cloud setup.
+Owner (unblocks everything else, none of it needs code): (1) choose the messaging vendor; (2) give the standard parcel size and packaging weight (or decide to book manually); (3) decide the paid-online-and-COD policy; (4) supply the items in docs/OWNER_SETUP.md sections A-D.
 
-Owner: collect docs/OWNER_SETUP.md inputs in parallel. After recovery gates pass, configure isolated staging and exercise providers with test credentials using docs/DEPLOYMENT.md. Production deployment requires explicit owner approval.
+Developer, after approval to create an isolated STAGING Firebase project (not production): deploy rules/indexes, set test-mode secrets, then rehearse and record - Razorpay Test Mode (success, failure, retry, refund incl. duplicate receipt and lost response, webhook retry/ordering, dashboard-created refund) and a Shiprocket sandbox booking (incl. repeated create/assign and `orders/show`); add the chosen messaging adapter against its contract tests; add browser tests for the admin recovery panels. Do not deploy, enable live payments or create paid infrastructure without explicit owner approval.
