@@ -33,7 +33,7 @@ export function Media({ src, alt, ratio = "4/5", sizes = "(min-width:1024px) 25v
       />
       {demo && (
         <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-sm bg-white/85 px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wider text-ink-muted">
-          Demo image
+          Sample photo
         </span>
       )}
     </div>

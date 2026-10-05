@@ -23,7 +23,7 @@ export default async function HomePage() {
     <>
       {/* Hero */}
       <section aria-labelledby="hero-title" className="on-dark relative isolate overflow-hidden bg-maroon text-white">
-        <Image src="/demo/hero.svg" alt={s.hero.imageAlt} fill priority unoptimized sizes="100vw" className="-z-10 object-cover object-[70%_center]" />
+        <Image src="/photos/hero.jpg" alt={s.hero.imageAlt} fill priority sizes="100vw" className="-z-10 object-cover object-[78%_center]" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-maroon/85 via-maroon/45 to-transparent sm:from-maroon/70" />
         <div className="container-rr flex min-h-[26rem] items-center py-16 sm:min-h-[32rem] lg:min-h-[38rem]">
           <div className="max-w-xl rr-fade">
@@ -39,7 +39,7 @@ export default async function HomePage() {
             </div>
           </div>
         </div>
-        <span className="absolute bottom-3 right-4 rounded-sm bg-white/80 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-muted">Demo illustration</span>
+        <span className="absolute bottom-3 right-4 rounded-sm bg-white/80 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-wider text-ink-muted">Sample photograph</span>
       </section>
 
       {/* Shop by category */}
@@ -52,7 +52,7 @@ export default async function HomePage() {
             <li key={c.id} className="w-28 shrink-0 text-center sm:w-auto">
               <Link href={`/category/${c.slug}`} className="group block">
                 <span className="relative mx-auto block aspect-[4/5] w-24 overflow-hidden rounded-[50%/42%] border border-gold/60 bg-beige sm:w-32 lg:w-36">
-                  <Image src={mediaUrl(c.imageUrl)} alt="" fill unoptimized sizes="150px" className="object-cover object-top transition-transform duration-500 group-hover:scale-105 motion-reduce:transform-none" />
+                  <Image src={mediaUrl(c.imageUrl)} alt="" fill sizes="150px" className="object-cover object-top transition-transform duration-500 group-hover:scale-105 motion-reduce:transform-none" />
                 </span>
                 <span className="mt-3 block font-nav text-[0.78rem] tracking-wide text-charcoal group-hover:text-maroon">{c.name}</span>
               </Link>
@@ -63,7 +63,7 @@ export default async function HomePage() {
 
       {/* Story band */}
       <section aria-labelledby="story-title" className="on-dark relative isolate overflow-hidden bg-maroon text-white">
-        <Image src="/demo/story.svg" alt="" fill unoptimized sizes="100vw" className="-z-10 object-cover opacity-60" />
+        <Image src="/photos/story.jpg" alt="" fill sizes="100vw" className="-z-10 object-cover opacity-50" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-maroon via-maroon/80 to-maroon/20" />
         <div className="container-rr grid items-center gap-8 py-14 md:grid-cols-[1.2fr_1fr] md:py-20">
           <div className="max-w-xl">
@@ -129,7 +129,7 @@ export default async function HomePage() {
             </div>
             <p className="text-xs text-ink-muted">Nothing is charged until you have agreed a quote and lead time with us.</p>
           </div>
-          <Media src="/demo/made-to-measure-bridal-lehenga-1.svg" alt="Demo illustration of a made-to-measure bridal lehenga" ratio="4/5" sizes="(min-width:768px) 50vw, 100vw" className="max-h-[34rem] md:aspect-auto md:h-full" demo />
+          <Media src="/photos/custom-feature.jpg" alt="Sample photograph of a model in a red bridal outfit with a veil-style dupatta" ratio="4/5" sizes="(min-width:768px) 50vw, 100vw" className="max-h-[34rem] md:aspect-auto md:h-full" demo />
         </div>
       </section>
 
@@ -165,7 +165,7 @@ export default async function HomePage() {
             </div>
           </li>
         </ul>
-        {isSimulated() && <p className="mt-4 text-center text-xs text-ink-muted">Local demo: sample catalogue, illustrative images and simulated payments.</p>}
+        {isSimulated() && <p className="mt-4 text-center text-xs text-ink-muted">Local demo: sample catalogue, sample photographs and simulated payments.</p>}
       </section>
     </>
   );

@@ -115,7 +115,7 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicSettings = {
     subhead: "For life's most beautiful moments",
     ctaLabel: "Shop the collection",
     ctaHref: "/shop",
-    imageAlt: "Illustration of a maroon bridal lehenga with gold embroidery",
+    imageAlt: "Sample photograph of a model in a rose-pink bridal lehenga standing in a stone archway",
   },
   home: {
     featuredProductIds: [],

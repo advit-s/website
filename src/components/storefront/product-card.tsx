@@ -26,7 +26,7 @@ export function ProductCard({ product: p, priority, className }: { product: List
           </span>
         )}
         <WishlistButton productId={p.id} name={p.name} className="absolute right-1.5 top-1.5" />
-        {p.isDemo && <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-sm bg-white/85 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider text-ink-muted">Demo image</span>}
+        {p.isDemo && <span className="pointer-events-none absolute bottom-1.5 left-1.5 rounded-sm bg-white/85 px-1.5 py-0.5 text-[0.6rem] font-semibold uppercase tracking-wider text-ink-muted">Sample photo</span>}
       </div>
       <div className="mt-3 space-y-1">
         <h3 className="font-sans text-[0.95rem] font-medium leading-snug text-charcoal">

@@ -8,7 +8,7 @@ export function AuthShell({ eyebrow, title, subtitle, children, panelLines }: { 
     <div className="container-rr py-6 sm:py-10">
       <div className="grid overflow-hidden border border-line bg-ivory shadow-sm lg:grid-cols-[1fr_1.1fr]">
         <aside className="on-dark relative isolate hidden min-h-[34rem] overflow-hidden bg-maroon text-white lg:block" aria-hidden>
-          <Image src="/demo/hero.svg" alt="" fill unoptimized sizes="40vw" className="-z-10 object-cover object-[72%_center] opacity-90" />
+          <Image src="/photos/hero.jpg" alt="" fill sizes="40vw" className="-z-10 object-cover object-[72%_center] opacity-90" />
           <div className="absolute inset-0 -z-10 bg-gradient-to-t from-maroon via-maroon/30 to-maroon/60" />
           <div className="flex h-full flex-col justify-between p-10">
             <div className="font-serif text-3xl leading-snug">

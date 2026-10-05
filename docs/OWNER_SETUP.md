@@ -28,7 +28,7 @@ Fill in **Admin -> Settings -> Legal identity**. Until then the legal pages show
 
 ## C. Content and imagery
 - [ ] Real **product photography** for every product (alt text required), category banners, hero image, About-page photos - only images you own or have licensed; log them in docs/ASSETS.md
-- [ ] Remove or unpublish the 19 demo products (flagged `isDemo`)
+- [ ] Replace the Unsplash **sample photographs** (`public/photos`, credited in docs/ASSETS.md; they show unrelated models, not your products) with your own, then remove the demo products (flagged `isDemo`)
 - [ ] Official **logo** file; the current wordmark is a placeholder
 - [ ] **Brand story** copy (Admin -> Settings -> Homepage). Do not add awards, history, counts or reviews you cannot substantiate. The reviews tab shows an honest empty state; a reviews system was deferred by the sitemap document.
 - [ ] Social media URLs (hidden until entered), WhatsApp business number in international digits (until set, every WhatsApp button leads to the Contact page, which explains the state)

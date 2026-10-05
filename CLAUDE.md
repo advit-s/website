@@ -51,7 +51,7 @@ beige `#E8DDC9`, taupe `#C9B8A7` (decorative), charcoal `#2D2D2D` (text), rose `
 Documented additions: `ink-muted #5C534D`, `line #DCCFB9`, `gold-ink #7A5D00`, success/warning/error/info pairs (always with icon + text).
 Fonts: Playfair Display (headings), Montserrat (nav/buttons/eyebrows), Inter (body/admin). Small radii (2-6px), 44px touch targets.
 Storefront = editorial (no dashboard styling); admin = compact neutral shell with maroon accents.
-Images: only generated placeholder art + user-supplied assets, tracked in `docs/ASSETS.md`. Never invent testimonials, awards, addresses or numbers.
+Images: Unsplash-licensed sample photographs in `public/photos` (fetched by `scripts/fetch-photos.mjs`, credited in `docs/ASSETS.md`, always labelled "Sample photo") + user-supplied assets. Never invent testimonials, awards, addresses or numbers.
 
 ## Doc map
 `docs/REQUIREMENTS.md` (traceable requirements + status) · `ROUTES.md` · `DECISIONS.md` · `PROGRESS.md` (state + exact next action) ·

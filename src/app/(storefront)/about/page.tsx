@@ -29,7 +29,7 @@ export default async function AboutPage() {
   return (
     <>
       <section className="on-dark relative isolate overflow-hidden bg-maroon text-white" aria-labelledby="about-h">
-        <Image src="/demo/hero.svg" alt="" fill unoptimized sizes="100vw" className="-z-10 object-cover object-[75%_center] opacity-80" />
+        <Image src="/photos/hero.jpg" alt="" fill sizes="100vw" className="-z-10 object-cover object-[78%_center] opacity-80" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-r from-maroon via-maroon/70 to-transparent" />
         <div className="container-rr py-16 sm:py-24">
           <p className="t-eyebrow text-gold">About us</p>
@@ -44,8 +44,8 @@ export default async function AboutPage() {
 
       <section className="container-rr grid items-center gap-10 py-12 md:grid-cols-2" aria-labelledby="story-h">
         <div className="relative aspect-[4/3] overflow-hidden bg-beige">
-          <Image src="/demo/story.svg" alt="Demo illustration of embroidered fabric" fill unoptimized sizes="(min-width:768px) 50vw, 100vw" className="object-cover" />
-          <span className="absolute bottom-2 left-2 rounded-sm bg-white/85 px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wider text-ink-muted">Demo illustration</span>
+          <Image src="/photos/about-detail.jpg" alt="Sample photograph: close-up of colourful floral embroidery" fill sizes="(min-width:768px) 50vw, 100vw" className="object-cover" />
+          <span className="absolute bottom-2 left-2 rounded-sm bg-white/85 px-1.5 py-0.5 text-[0.62rem] font-semibold uppercase tracking-wider text-ink-muted">Sample photograph</span>
         </div>
         <div>
           <p className="t-eyebrow text-wine">Our story</p>

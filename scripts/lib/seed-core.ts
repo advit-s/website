@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { db, adminAuth } from "@/server/firebase/admin";
 import { C, chunk, nowIso } from "@/server/repos/common";
 import { DEFAULT_PRIVATE_SETTINGS, DEFAULT_PUBLIC_SETTINGS } from "@/domain/settings";
@@ -5,6 +6,9 @@ import { computeIsLowStock, deriveFromVariants, productSearchTokens, variantId }
 import { rupeesToPaise } from "@/domain/money";
 import type { Product, Variant } from "@/domain/types";
 import { SEED_CATEGORIES, SEED_COUPONS, SEED_PRODUCTS } from "./seed-catalog";
+
+/** Alt text for the sample photographs (written by scripts/fetch-photos.mjs). */
+const PHOTO_ALTS: Record<string, [string, string]> = JSON.parse(readFileSync("scripts/lib/photo-alts.json", "utf8"));
 
 export const DEMO_PASSWORD = process.env.SEED_DEMO_PASSWORD ?? "Demo#Passw0rd";
 
@@ -43,7 +47,7 @@ export async function seedCatalog(): Promise<{ products: number; variants: numbe
         name: c.name,
         slug: c.slug,
         description: c.description,
-        imageUrl: `/demo/category-${c.slug}.svg`,
+        imageUrl: `/photos/category-${c.slug}.jpg`,
         sortOrder: c.sortOrder,
         isActive: c.isActive,
         version: 1,
@@ -82,8 +86,8 @@ export async function seedCatalog(): Promise<{ products: number; variants: numbe
     const created = new Date(Date.now() - (SEED_PRODUCTS.length - idx) * 3_600_000 * 6).toISOString();
     const published = (sp.status ?? "published") === "published";
     const images = [
-      { src: `/demo/${sp.slug}-1.svg`, alt: `${sp.name} - demo illustration`, order: 0 },
-      { src: `/demo/${sp.slug}-2.svg`, alt: `${sp.name} - embroidery detail, demo illustration`, order: 1 },
+      { src: `/photos/${sp.slug}-1.jpg`, alt: `${PHOTO_ALTS[sp.slug]?.[0] ?? sp.name} (sample photograph)`, order: 0 },
+      { src: `/photos/${sp.slug}-2.jpg`, alt: `${PHOTO_ALTS[sp.slug]?.[1] ?? sp.name} (sample photograph)`, order: 1 },
     ];
     const product: Omit<Product, "id"> = {
       categoryId: sp.categoryId,
